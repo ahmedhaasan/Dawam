@@ -1,0 +1,14 @@
+{
+  "dailyWageMinor": 20000,
+  "monthlySalaryMinor": 600000,
+  "wageBasisDays": 30,
+  "scheduledMinutes": 720,
+  "lateMinutes": [0, 1, 30, 59, 60, 61],
+  "expected": {
+    "hourly_proportional": [0, 28, 833, 1639, 1667, 1694],
+    "hourly_rounded_up": [0, 1667, 1667, 1667, 1667, 3333],
+    "day_per_started_hour": [0, 20000, 20000, 20000, 20000, 20000],
+    "day_any_lateness": [0, 20000, 20000, 20000, 20000, 20000],
+    "day_at_threshold": [0, 0, 0, 0, 20000, 20000]
+  }
+}

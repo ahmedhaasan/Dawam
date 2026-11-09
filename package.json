@@ -1,0 +1,32 @@
+{
+  "name": "dawam",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Offline attendance and payroll-preview desktop app",
+  "packageManager": "pnpm@11.25.0",
+  "engines": {
+    "node": ">=22.12.0",
+    "pnpm": ">=11.0.0"
+  },
+  "scripts": {
+    "dev": "pnpm --filter @dawam/desktop dev",
+    "build": "pnpm --filter @dawam/desktop build",
+    "dist:win": "pnpm --filter @dawam/desktop dist:win",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "lint": "eslint . --max-warnings 0",
+    "typecheck": "pnpm -r --if-present typecheck",
+    "test": "vitest run",
+    "check": "pnpm lint && pnpm typecheck && pnpm test"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.39.1",
+    "@types/node": "^24.10.0",
+    "eslint": "^9.39.1",
+    "globals": "^16.5.0",
+    "prettier": "^3.9.0",
+    "typescript": "^5.9.3",
+    "typescript-eslint": "^8.72.0",
+    "vitest": "^4.0.8"
+  }
+}

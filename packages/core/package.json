@@ -1,0 +1,20 @@
+{
+  "name": "@dawam/core",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": "./src/index.ts",
+  "scripts": {
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "luxon": "^3.7.2"
+  },
+  "devDependencies": {
+    "@types/luxon": "^3.7.6",
+    "@vitest/coverage-v8": "^4.1.12",
+    "fast-check": "^4.10.2"
+  }
+}

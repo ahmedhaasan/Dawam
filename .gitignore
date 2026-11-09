@@ -1,0 +1,21 @@
+node_modules/
+dist/
+out/
+coverage/
+release/
+apps/desktop/release/
+*.log
+*.sqlite
+*.sqlite-*
+*.db
+.DS_Store
+.env
+.env.*
+!.env.example
+
+# Never commit real employee data, device exports, photos, or backups.
+data/
+backups/
+photos/
+tests/fixtures/real/*
+!tests/fixtures/real/.gitkeep

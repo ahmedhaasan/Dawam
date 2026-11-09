@@ -1,0 +1,12 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "lib": ["ESNext", "DOM", "DOM.Iterable"],
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "noEmit": true,
+    "target": "ESNext",
+    "types": ["node", "electron-vite/node"]
+  },
+  "include": ["electron.vite.config.ts", "src/main/**/*.ts", "src/preload/**/*.ts"]
+}

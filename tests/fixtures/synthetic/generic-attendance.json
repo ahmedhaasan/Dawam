@@ -1,0 +1,14 @@
+[
+  {
+    "deviceUserId": "0007",
+    "punchedAtLocal": "2026-10-31 09:55:00",
+    "deviceStatus": "0",
+    "verifyMode": "15"
+  },
+  {
+    "deviceUserId": "0007",
+    "punchedAtLocal": "2026-10-31 22:05:00",
+    "deviceStatus": "1",
+    "verifyMode": "15"
+  }
+]

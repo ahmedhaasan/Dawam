@@ -1,0 +1,71 @@
+{
+  "name": "@dawam/desktop",
+  "version": "0.1.0",
+  "private": true,
+  "author": "Dawam",
+  "type": "module",
+  "main": "./out/main/index.js",
+  "scripts": {
+    "dev": "electron-vite dev",
+    "build": "electron-vite build",
+    "dist:win": "pnpm build && electron-builder --win nsis --x64 --publish never",
+    "preview": "electron-vite preview",
+    "typecheck": "tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p tsconfig.web.json"
+  },
+  "dependencies": {
+    "@dawam/core": "workspace:*",
+    "@dawam/db": "workspace:*",
+    "i18next": "^25.7.0",
+    "react": "18.3.1",
+    "react-dom": "18.3.1",
+    "react-i18next": "^16.3.0",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "@swc/core": "^1.16.22",
+    "@types/react": "^18.3.27",
+    "@types/react-dom": "^18.3.7",
+    "@vitejs/plugin-react": "^5.2.0",
+    "electron": "45.2.3",
+    "electron-builder": "^26.18.0",
+    "electron-vite": "^5.0.0",
+    "vite": "^7.3.7"
+  },
+  "build": {
+    "appId": "com.dawam.desktop",
+    "productName": "Dawam",
+    "artifactName": "Dawam-Setup-${version}-${arch}.${ext}",
+    "asar": true,
+    "directories": {
+      "output": "release",
+      "buildResources": "build"
+    },
+    "files": [
+      "out/**/*",
+      "package.json"
+    ],
+    "extraMetadata": {
+      "name": "dawam",
+      "description": "Offline attendance and payroll desktop app"
+    },
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "build/icon.png"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Dawam",
+      "deleteAppDataOnUninstall": false
+    }
+  }
+}
