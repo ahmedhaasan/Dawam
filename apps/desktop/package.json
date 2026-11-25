@@ -2,7 +2,7 @@
   "name": "@dawam/desktop",
   "version": "0.1.0",
   "private": true,
-  "author": "Dawam",
+  "author": "Ahmed Hassan",
   "type": "module",
   "main": "./out/main/index.js",
   "scripts": {
@@ -33,8 +33,8 @@
   },
   "build": {
     "appId": "com.dawam.desktop",
-    "productName": "Dawam",
-    "artifactName": "Dawam-Setup-${version}-${arch}.${ext}",
+    "productName": "بصمة الطيار",
+    "artifactName": "Basmat-Eltyar-Setup-${version}-${arch}.${ext}",
     "asar": true,
     "directories": {
       "output": "release",
@@ -46,7 +46,7 @@
     ],
     "extraMetadata": {
       "name": "dawam",
-      "description": "Offline attendance and payroll desktop app"
+      "description": "Basmat Eltyar offline attendance and payroll desktop app"
     },
     "win": {
       "target": [
@@ -64,7 +64,7 @@
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
-      "shortcutName": "Dawam",
+      "shortcutName": "بصمة الطيار",
       "deleteAppDataOnUninstall": false
     }
   }

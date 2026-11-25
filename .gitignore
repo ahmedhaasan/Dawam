@@ -4,6 +4,7 @@ out/
 coverage/
 release/
 apps/desktop/release/
+eltyar icon/
 *.log
 *.sqlite
 *.sqlite-*

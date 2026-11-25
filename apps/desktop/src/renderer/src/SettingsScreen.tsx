@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import type { AuditDto, SessionDto } from '../../shared/ipc';
+import eltyarLogo from './assets/eltyar-logo.png';
 
 interface SettingsScreenProps {
   session: SessionDto;
@@ -683,6 +684,16 @@ export const SettingsScreen = ({
               </button>
             </section>
           </div>
+
+          <section className="card settings-about-card">
+            <img src={eltyarLogo} alt="" />
+            <div>
+              <span className="eyebrow">{t('settings.aboutEyebrow')}</span>
+              <h2>{t('app.name')}</h2>
+              <p>{t('settings.aboutDescription')}</p>
+              <strong>{t('settings.developerCredit')}</strong>
+            </div>
+          </section>
 
           <details className="card table-card settings-audit">
             <summary>{t('settings.auditShow')}</summary>

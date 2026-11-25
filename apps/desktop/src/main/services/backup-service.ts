@@ -209,7 +209,7 @@ export class BackupService {
         password,
       );
       const stamp = createdAt.replace(/[:.]/g, '-');
-      const outputPath = join(destination, `Dawam-${stamp}.dawam-backup`);
+      const outputPath = join(destination, `Basmat-Eltyar-${stamp}.dawam-backup`);
       writeFileSync(outputPath, JSON.stringify(encrypted), { flag: 'wx' });
       this.audit.append({
         actorUserId: actor.value.id,

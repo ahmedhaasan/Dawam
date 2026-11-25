@@ -9,7 +9,7 @@ export const resources = {
   ar: {
     translation: {
       app: {
-        name: 'دوام',
+        name: 'بصمة الطيار',
         tagline: 'الحضور والرواتب، ببساطة ووضوح',
       },
       nav: {
@@ -36,7 +36,7 @@ export const resources = {
         heroDescription: 'بيانات فريقك وحضوره وحساباته تبقى على جهازك وتحت سيطرتك.',
         localSecurity: 'قاعدة بيانات محلية وسجل مراجعة محمي',
         createAdmin: 'إنشاء حساب المدير الأول',
-        loginTitle: 'تسجيل الدخول إلى دوام',
+        loginTitle: 'تسجيل الدخول إلى بصمة الطيار',
         setupDescription: 'سيملك هذا الحساب صلاحية إدارة المستخدمين والسياسات والنسخ الاحتياطي.',
         loginDescription: 'استخدم بيانات الحساب الذي أنشأه مدير النظام.',
         username: 'اسم المستخدم',
@@ -48,14 +48,15 @@ export const resources = {
         createAndContinue: 'إنشاء المدير والمتابعة',
         loginAction: 'دخول',
         working: 'جارٍ التحقق…',
-        loading: 'جارٍ تشغيل دوام…',
+        loading: 'جارٍ تشغيل بصمة الطيار…',
       },
       home: {
         eyebrow: 'نظرة عامة',
         greeting: 'مرحبًا، {{name}}',
         subtitle: 'كل ما تحتاجه لمتابعة فريقك في مكان واحد.',
         importTitle: 'استيراد ملف الحضور',
-        importDescription: 'ارفع ملف الحضور من ذاكرة USB وسيقوم دوام بتنظيم البصمات تلقائيًا.',
+        importDescription:
+          'ارفع ملف الحضور من ذاكرة USB وستقوم بصمة الطيار بتنظيم البصمات تلقائيًا.',
         importAction: 'اختر ملف الحضور',
         importHint: 'تم التحقق من صيغة eFace 10 DAT الحقيقية؛ تقارير XLS ما زالت غير متحققة',
         employees: 'الموظفون',
@@ -70,7 +71,7 @@ export const resources = {
         coverageNeeded: 'تغطية مطلوبة',
         scheduled: 'مجدول اليوم',
         noShiftsToday: 'لا توجد شيفتات مجدولة اليوم.',
-        liveTitle: 'بيانات حقيقية من سجلات دوام',
+        liveTitle: 'بيانات حقيقية من سجلات بصمة الطيار',
         liveDescription: 'هذه الأرقام تتحدث من الموظفين والجداول والبصمات المحفوظة على جهازك.',
         noDataTitle: 'ابدأ بإضافة فريقك',
         noDataDescription: 'بيانات هذه الشاشة تجريبية في مرحلة التأسيس.',
@@ -94,7 +95,7 @@ export const resources = {
         coverageFrom: 'تغطية الملف من',
         coverageTo: 'تغطية الملف إلى',
         coverageConfirm: 'أؤكد أن الجهاز صدّر كل البصمات في هذه الفترة.',
-        coverageWarning: 'لن يعتبر دوام الموظف غائبًا خارج فترة التغطية المؤكدة.',
+        coverageWarning: 'لن تعتبر بصمة الطيار الموظف غائبًا خارج فترة التغطية المؤكدة.',
         commit: 'تأكيد واستيراد',
         working: 'جارٍ معالجة الملف…',
         completed: 'اكتمل الاستيراد',
@@ -275,9 +276,9 @@ export const resources = {
         exceptionReason: 'سبب الاستثناء',
         help: {
           assignment:
-            'اختر الشيفت الأساسي للموظف. سيستمر من هذا التاريخ حتى تغيّره أو توقف الموظف، وسيحتفظ دوام بالتاريخ السابق تلقائيًا.',
+            'اختر الشيفت الأساسي للموظف. سيستمر من هذا التاريخ حتى تغيّره أو توقف الموظف، وستحتفظ بصمة الطيار بالتاريخ السابق تلقائيًا.',
           rest: 'يوم الراحة يتكرر كل أسبوع من هذا التاريخ حتى تغيّره. لا تحتاج إلى إدخال تاريخ نهاية.',
-          pair: 'اختر زميلًا مرة واحدة. سيقرأ دوام يوم راحة كل موظف تلقائيًا ويُنشئ التغطية الأسبوعية ويجمع وقت الشيفتين عند التغطية.',
+          pair: 'اختر زميلًا مرة واحدة. ستقرأ بصمة الطيار يوم راحة كل موظف تلقائيًا وتُنشئ التغطية الأسبوعية وتجمع وقت الشيفتين عند التغطية.',
           override:
             'استخدم هذا فقط ليوم غير معتاد. يمكنك تسجيله قبل أو بعد استيراد ملف البصمة، بشرط أن يكون قبل اعتماد الراتب.',
         },
@@ -414,7 +415,7 @@ export const resources = {
           saved: 'تم حفظ الشيفت.',
           groups: { shift: 'الشيفت', windows: 'نوافذ البصمة' },
           help: {
-            firstLast: 'يحتفظ دوام دائمًا بأول بصمة دخول وآخر بصمة خروج حقيقية في اليوم.',
+            firstLast: 'تحتفظ بصمة الطيار دائمًا بأول بصمة دخول وآخر بصمة خروج حقيقية في اليوم.',
             late: 'التأخير = الدقائق بعد بداية الشيفت، ويُحسب فقط إذا تجاوزت البصمة السماحية.',
             overtime: 'الإضافي = الوقت بعد نهاية الشيفت.',
             midnight: 'الأوقات بعد منتصف الليل تُحسب لليوم التالي (+1).',
@@ -563,7 +564,7 @@ export const resources = {
         subtitle: 'راجع كل يوم والخصومات قبل الاعتماد النهائي.',
         simpleSubtitle: 'اختر الموظف والشهر، ثم راجع كل يوم وحدد الخصم بنفسك قبل الاعتماد.',
         ruleTitle: 'إعداد مراجعة الخصومات',
-        ruleDescription: 'يطبقها دوام تلقائيًا؛ لا تحتاج إلى إنشاء سياسة أو اختيار معادلات.',
+        ruleDescription: 'تطبقها بصمة الطيار تلقائيًا؛ لا تحتاج إلى إنشاء سياسة أو اختيار معادلات.',
         ruleDailyWage: 'أجر اليوم = الراتب الشهري ÷ أيام أساس الأجر (الافتراضي 30 يومًا).',
         ruleLate: 'كل ساعة تأخير تبدأ = خصم أجر يوم واحد.',
         ruleAbsence: 'كل يوم غياب مؤكد = خصم أجر يوم واحد.',
@@ -575,7 +576,8 @@ export const resources = {
         absenceSummary: 'خصم الغياب · {{count}} يوم',
         absenceSummaryReviewed: 'الغياب {{total}} يوم · اخترت خصم {{charged}} يوم',
         deductedDays: 'أيام الخصم',
-        approveSimpleWarning: 'راجع النتيجة ثم اعتمد راتب هذا الشهر. سيحتفظ دوام بنسخة ثابتة.',
+        approveSimpleWarning:
+          'راجع النتيجة ثم اعتمد راتب هذا الشهر. ستحتفظ بصمة الطيار بنسخة ثابتة.',
         chooseSimpleRule:
           'لا يُخصم شيء عند الحساب. حدّد قيمة الساعة ثم اختر الإجراء لكل يوم في الجدول.',
         fixedHourRule: 'مبلغ محدد لكل ساعة تأخير',
@@ -829,6 +831,9 @@ export const resources = {
         eyebrow: 'إدارة التطبيق',
         title: 'الإعدادات والحسابات',
         subtitle: 'حدّث صورتك وأدر حسابات المديرين والمستخدمين من مكان واحد.',
+        aboutEyebrow: 'عن البرنامج',
+        aboutDescription: 'نظام محلي لإدارة الحضور والانصراف والرواتب لمركز الطيار.',
+        developerCredit: 'تم برمجة وتطوير هذا البرنامج بواسطة المهندس أحمد حسن.',
         profileTitle: 'صورتي الشخصية',
         profileHelp:
           'هذه صورة الحساب المسجل حاليًا ({{name}}). اختر JPG أو PNG أو WebP حتى 5 ميجابايت.',
@@ -867,7 +872,8 @@ export const resources = {
         auditValid: 'سجل المراجعة سليم.',
         auditInvalid: 'تعذر التحقق من سلامة سجل المراجعة.',
         securityTitle: 'الأمان وقفل الجلسة',
-        securityHelp: 'يقفل دوام الجلسة تلقائيًا عند عدم الاستخدام ويطلب تسجيل الدخول من جديد.',
+        securityHelp:
+          'تقفل بصمة الطيار الجلسة تلقائيًا عند عدم الاستخدام ويطلب تسجيل الدخول من جديد.',
         idleLock: 'القفل التلقائي بعد',
         idleNever: 'بدون قفل تلقائي',
         idleMinutes: '{{count}} دقيقة',
@@ -887,13 +893,14 @@ export const resources = {
         backupCreated: 'تم إنشاء النسخة الاحتياطية في {{path}}',
         restoreTitle: 'استعادة نسخة احتياطية',
         restoreHelp:
-          'يتم فحص الملف وإنشاء نسخة أمان تلقائية قبل الاستعادة. تطبق الاستعادة بعد إعادة فتح دوام.',
+          'يتم فحص الملف وإنشاء نسخة أمان تلقائية قبل الاستعادة. تطبق الاستعادة بعد إعادة فتح بصمة الطيار.',
         chooseBackup: 'اختيار ملف النسخة',
         noBackupFile: 'لم يتم اختيار ملف',
         prepareRestore: 'فحص وتجهيز الاستعادة',
         restoreConfirm:
-          'هل تريد فحص وتجهيز هذه النسخة للاستعادة؟ لن تطبق حتى تغلق دوام وتفتحه مرة أخرى.',
-        restoreReady: 'النسخة سليمة وجاهزة. أغلق دوام وافتحه لتطبيقها. نسخة الأمان: {{path}}',
+          'هل تريد فحص وتجهيز هذه النسخة للاستعادة؟ لن تطبق حتى تغلق بصمة الطيار وتفتحها مرة أخرى.',
+        restoreReady:
+          'النسخة سليمة وجاهزة. أغلق بصمة الطيار وافتحها لتطبيقها. نسخة الأمان: {{path}}',
         auditTitle: 'سجل المراجعة',
         auditHelp: 'آخر ١٠٠ إجراء إداري محفوظ بسلسلة تحقق ضد العبث.',
         auditShow: 'عرض سجل المراجعة التقني عند الحاجة',
@@ -913,15 +920,15 @@ export const resources = {
         auditResetDone: 'تم حذف {{count}} سجلًا وبدأ سجل تحقق جديد.',
       },
       errors: {
-        desktop_api_unavailable: 'تعذر الاتصال بتطبيق دوام. أغلق التطبيق وافتحه مرة أخرى.',
-        unexpected: 'حدث خطأ غير متوقع. حاول مرة أخرى، وإذا استمر أعد تشغيل دوام.',
+        desktop_api_unavailable: 'تعذر الاتصال بتطبيق بصمة الطيار. أغلق التطبيق وافتحه مرة أخرى.',
+        unexpected: 'حدث خطأ غير متوقع. حاول مرة أخرى، وإذا استمر أعد تشغيل بصمة الطيار.',
         import_empty_file: 'الملف فارغ.',
         import_file_too_large: 'الملف أكبر من ١٠ ميجابايت.',
         import_encrypted_or_binary:
           'الملف مشفّر أو غير مدعوم. صدّر Attendance Data مع إيقاف التشفير.',
         import_xls_unverified:
           'تقرير XLS لهذا الجهاز لم يتم التحقق منه بعد. استخدم Attendance Data أو CSV/JSON.',
-        import_unknown_format: 'لم يتعرف دوام على صيغة الملف.',
+        import_unknown_format: 'لم تتعرف بصمة الطيار على صيغة الملف.',
         import_invalid_filename: 'اسم الملف غير صالح.',
         import_invalid_coverage: 'تاريخ نهاية التغطية يجب أن يكون بعد البداية.',
         import_quarantine_not_found: 'تمت معالجة هذه البصمة أو لم تعد موجودة.',
@@ -986,7 +993,7 @@ export const resources = {
   en: {
     translation: {
       app: {
-        name: 'Dawam',
+        name: 'Eltyar Attendance',
         tagline: 'Attendance and payroll, made clear',
       },
       nav: {
@@ -1014,7 +1021,7 @@ export const resources = {
           'Your team, attendance, and payroll data stay on your computer and under your control.',
         localSecurity: 'Local database with a protected audit trail',
         createAdmin: 'Create the first administrator',
-        loginTitle: 'Sign in to Dawam',
+        loginTitle: 'Sign in to Eltyar Attendance',
         setupDescription: 'This account can manage users, policies, and backups.',
         loginDescription: 'Use the account credentials provided by your administrator.',
         username: 'Username',
@@ -1026,7 +1033,7 @@ export const resources = {
         createAndContinue: 'Create administrator and continue',
         loginAction: 'Sign in',
         working: 'Checking…',
-        loading: 'Starting Dawam…',
+        loading: 'Starting Eltyar Attendance…',
       },
       home: {
         eyebrow: 'Overview',
@@ -1034,7 +1041,7 @@ export const resources = {
         subtitle: 'Everything you need to follow your team in one place.',
         importTitle: 'Import attendance file',
         importDescription:
-          'Choose the attendance file from your USB drive and Dawam will organize the punches.',
+          'Choose the attendance file from your USB drive and Eltyar Attendance will organize the punches.',
         importAction: 'Choose attendance file',
         importHint: 'The real eFace 10 DAT format is verified; XLS reports remain unverified',
         employees: 'Employees',
@@ -1049,7 +1056,7 @@ export const resources = {
         coverageNeeded: 'Coverage needed',
         scheduled: 'Scheduled today',
         noShiftsToday: 'No shifts are scheduled today.',
-        liveTitle: 'Live data from Dawam records',
+        liveTitle: 'Live data from Eltyar Attendance records',
         liveDescription:
           'These numbers update from employees, schedules, and punches stored on this computer.',
         noDataTitle: 'Start by adding your team',
@@ -1075,7 +1082,7 @@ export const resources = {
         coverageTo: 'File coverage to',
         coverageConfirm: 'I confirm the device exported every punch for this period.',
         coverageWarning:
-          'Dawam will never mark an employee absent outside confirmed import coverage.',
+          'Eltyar Attendance will never mark an employee absent outside confirmed import coverage.',
         commit: 'Confirm and import',
         working: 'Processing file…',
         completed: 'Import complete',
@@ -1259,9 +1266,9 @@ export const resources = {
         exceptionReason: 'Reason for this exception',
         help: {
           assignment:
-            'Choose the employee’s normal shift. It continues from this date until you change it or deactivate the employee; Dawam preserves the previous history automatically.',
+            'Choose the employee’s normal shift. It continues from this date until you change it or deactivate the employee; Eltyar Attendance preserves the previous history automatically.',
           rest: 'The selected day off repeats every week from this date until you change it. No end date is required.',
-          pair: 'Choose a teammate once. Dawam reads both weekly-off days, creates recurring coverage automatically, and merges both shift times on a coverage day.',
+          pair: 'Choose a teammate once. Eltyar Attendance reads both weekly-off days, creates recurring coverage automatically, and merges both shift times on a coverage day.',
           override:
             'Use this only for an unusual date. It can be recorded before or after importing punches, as long as it is entered before payroll approval.',
         },
@@ -1401,7 +1408,8 @@ export const resources = {
           saved: 'Shift saved.',
           groups: { shift: 'Shift', windows: 'Punch windows' },
           help: {
-            firstLast: 'Dawam always keeps the real first check-in and last check-out of the day.',
+            firstLast:
+              'Eltyar Attendance always keeps the real first check-in and last check-out of the day.',
             late: 'Late = minutes after the shift start, counted only once the punch is beyond the grace.',
             overtime: 'Overtime = time after the shift end.',
             midnight: 'Times after midnight belong to the next day (+1).',
@@ -1556,7 +1564,7 @@ export const resources = {
           'Choose an employee and month, then review every date and explicitly select each deduction.',
         ruleTitle: 'Deduction review setup',
         ruleDescription:
-          'Dawam applies it automatically; no policy or accounting formula setup is required.',
+          'Eltyar Attendance applies it automatically; no policy or accounting formula setup is required.',
         ruleDailyWage: 'Daily wage = monthly salary ÷ wage-basis days (30 by default).',
         ruleLate: 'Each started late hour deducts one daily wage.',
         ruleAbsence: 'Each confirmed absence deducts one daily wage.',
@@ -1570,7 +1578,7 @@ export const resources = {
         absenceSummaryReviewed: '{{total}} absent days · {{charged}} selected for deduction',
         deductedDays: 'Deducted days',
         approveSimpleWarning:
-          'Review the result, then approve this month. Dawam keeps a fixed snapshot.',
+          'Review the result, then approve this month. Eltyar Attendance keeps a fixed snapshot.',
         chooseSimpleRule:
           'Calculation starts with no deductions. Set the hourly value, then choose an action for each date below.',
         fixedHourRule: 'Fixed amount per late hour',
@@ -1826,6 +1834,9 @@ export const resources = {
         eyebrow: 'Application management',
         title: 'Settings and accounts',
         subtitle: 'Update your profile and manage administrator and operator accounts.',
+        aboutEyebrow: 'About',
+        aboutDescription: 'A local attendance, timekeeping, and payroll system for Eltyar Center.',
+        developerCredit: 'Designed and developed by Eng. Ahmed Hassan.',
         profileTitle: 'My profile photo',
         profileHelp:
           'This photo belongs to the currently signed-in account ({{name}}). Choose JPG, PNG, or WebP up to 5 MB.',
@@ -1865,7 +1876,8 @@ export const resources = {
         auditValid: 'The audit trail is valid.',
         auditInvalid: 'The audit trail could not be verified.',
         securityTitle: 'Security and session lock',
-        securityHelp: 'Dawam automatically locks an inactive session and requires sign-in again.',
+        securityHelp:
+          'Eltyar Attendance automatically locks an inactive session and requires sign-in again.',
         idleLock: 'Automatically lock after',
         idleNever: 'Never lock automatically',
         idleMinutes: '{{count}} minutes',
@@ -1885,14 +1897,14 @@ export const resources = {
         backupCreated: 'Backup created at {{path}}',
         restoreTitle: 'Restore backup',
         restoreHelp:
-          'Dawam validates the file and creates an automatic safety backup first. Restore applies after reopening Dawam.',
+          'Eltyar Attendance validates the file and creates an automatic safety backup first. Restore applies after reopening Eltyar Attendance.',
         chooseBackup: 'Choose backup file',
         noBackupFile: 'No file selected',
         prepareRestore: 'Validate and prepare restore',
         restoreConfirm:
-          'Validate and prepare this backup for restore? It will apply only after you close and reopen Dawam.',
+          'Validate and prepare this backup for restore? It will apply only after you close and reopen Eltyar Attendance.',
         restoreReady:
-          'Backup is valid and ready. Close and reopen Dawam to apply it. Safety backup: {{path}}',
+          'Backup is valid and ready. Close and reopen Eltyar Attendance to apply it. Safety backup: {{path}}',
         auditTitle: 'Audit trail',
         auditHelp:
           'The latest 100 administrative actions, protected by a tamper-evident hash chain.',
@@ -1914,15 +1926,16 @@ export const resources = {
       },
       errors: {
         desktop_api_unavailable:
-          'Dawam could not connect to the desktop application. Close and reopen the app.',
-        unexpected: 'Something unexpected happened. Try again, or restart Dawam if it continues.',
+          'Eltyar Attendance could not connect to the desktop application. Close and reopen the app.',
+        unexpected:
+          'Something unexpected happened. Try again, or restart Eltyar Attendance if it continues.',
         import_empty_file: 'The selected file is empty.',
         import_file_too_large: 'The selected file is larger than 10 MB.',
         import_encrypted_or_binary:
           'The file is encrypted or unsupported. Export Attendance Data with encryption turned off.',
         import_xls_unverified:
           'This device XLS report is not verified yet. Use Attendance Data, CSV, or JSON.',
-        import_unknown_format: 'Dawam could not recognize the attendance file format.',
+        import_unknown_format: 'Eltyar Attendance could not recognize the attendance file format.',
         import_invalid_filename: 'The filename is invalid.',
         import_invalid_coverage: 'The coverage end must be after the coverage start.',
         import_quarantine_not_found: 'That punch was already handled or no longer exists.',
@@ -2001,7 +2014,7 @@ void i18n.use(initReactI18next).init({
 export const applyDocumentLanguage = (language: SupportedLanguage): void => {
   document.documentElement.lang = language;
   document.documentElement.dir = language === 'ar' ? 'rtl' : 'ltr';
-  document.title = language === 'ar' ? 'دوام' : 'Dawam';
+  document.title = language === 'ar' ? 'بصمة الطيار' : 'Eltyar Attendance';
   localStorage.setItem(LANGUAGE_STORAGE_KEY, language);
 };
 

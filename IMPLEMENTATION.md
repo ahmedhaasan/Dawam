@@ -14,6 +14,19 @@ Rule: update in the same change as each step. Entry format below. Never mark a c
 
 ## History
 
+## 2026-11-25 — Basmat Eltyar branding
+
+- Done:
+  - renamed the user-facing application to **بصمة الطيار** / **Eltyar Attendance** across login, navigation, window title, installer metadata, backup dialogs, and localized messages;
+  - applied the supplied Eltyar artwork to the application shell and desktop build icon;
+  - added a professional About card in Settings with the developer credit for Eng. Ahmed Hassan;
+  - renamed new installer artifacts to `Basmat-Eltyar-Setup-*`, Windows shortcuts to `بصمة الطيار`, and new backup filenames to `Basmat-Eltyar-*`;
+  - preserved `com.dawam.desktop`, the legacy `Dawam` user-data directory, SQLite filename, and `.dawam-backup` extension so upgrades retain existing data and old backups remain compatible.
+- Validation run (commands + result): `CI=true pnpm check` PASS (ESLint, strict typechecks, 20 test files and 131/131 tests).
+- PENDING checks: rebuild and visually verify the Windows installer icon and shortcut on the target Windows 10/11 computer.
+- Blockers / new open decisions: none.
+- Next: production build, commit, push, then rebuild the signed/target Windows installer when requested.
+
 ## 2026-11-25 — Payroll clarity: charged-day formula, wrapped statuses, and coverage
 
 - Done:

@@ -51,7 +51,9 @@ const createWindow = (): void => {
   }
 };
 
-app.setName('Dawam');
+// Keep the legacy data folder so a branded upgrade preserves all existing records.
+app.setPath('userData', join(app.getPath('appData'), 'Dawam'));
+app.setName('بصمة الطيار');
 
 void app
   .whenReady()
@@ -82,16 +84,16 @@ void app
       dialogs: {
         chooseBackupFolder: async () => {
           const result = await dialog.showOpenDialog({
-            title: 'Choose Dawam backup folder',
+            title: 'Choose Basmat Eltyar backup folder',
             properties: ['openDirectory', 'createDirectory'],
           });
           return result.canceled ? null : (result.filePaths[0] ?? null);
         },
         chooseBackupFile: async () => {
           const result = await dialog.showOpenDialog({
-            title: 'Choose Dawam backup',
+            title: 'Choose Basmat Eltyar backup',
             properties: ['openFile'],
-            filters: [{ name: 'Dawam backup', extensions: ['dawam-backup'] }],
+            filters: [{ name: 'Basmat Eltyar backup', extensions: ['dawam-backup'] }],
           });
           return result.canceled ? null : (result.filePaths[0] ?? null);
         },
@@ -104,8 +106,8 @@ void app
     });
   })
   .catch((error: unknown) => {
-    if (process.env.ELECTRON_RENDERER_URL) console.error('Dawam failed to start:', error);
-    else console.error('Dawam failed to start.');
+    if (process.env.ELECTRON_RENDERER_URL) console.error('Basmat Eltyar failed to start:', error);
+    else console.error('Basmat Eltyar failed to start.');
     app.quit();
   });
 

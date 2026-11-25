@@ -9,6 +9,7 @@ import { ImportWizard } from './ImportWizard';
 import { PayrollScreen } from './PayrollScreen';
 import { SettingsScreen } from './SettingsScreen';
 import { EmployeesScreen, ScheduleScreen, ShiftsScreen } from './WorkforceScreens';
+import eltyarLogo from './assets/eltyar-logo.png';
 
 type IconName =
   | 'home'
@@ -265,11 +266,7 @@ const Dashboard = ({ session, onLogout }: DashboardProps): React.JSX.Element => 
     <div className={sidebarCollapsed ? 'app-shell sidebar-collapsed' : 'app-shell'}>
       <aside className="sidebar">
         <div className="brand">
-          <div className="brand-mark">
-            <span></span>
-            <span></span>
-            <span></span>
-          </div>
+          <img className="brand-logo" src={eltyarLogo} alt="" />
           <div>
             <strong>{t('app.name')}</strong>
             <small>{t('app.tagline')}</small>
@@ -506,11 +503,7 @@ const AccessScreen = ({ mode, onAuthenticated }: AccessScreenProps): React.JSX.E
     <main className="access-shell">
       <section className="access-visual">
         <div className="access-brand">
-          <div className="brand-mark">
-            <span></span>
-            <span></span>
-            <span></span>
-          </div>
+          <img className="brand-logo" src={eltyarLogo} alt="" />
           <div>
             <strong>{t('app.name')}</strong>
             <small>{t('app.tagline')}</small>
