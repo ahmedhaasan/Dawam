@@ -22,13 +22,20 @@ const applyMigrations = (database: DatabaseSync): void => {
   let version = currentVersion(database);
   for (const migration of migrations) {
     if (migration.version <= version) continue;
+    if (migration.foreignKeysOff) database.exec('PRAGMA foreign_keys=OFF');
     database.exec('BEGIN IMMEDIATE');
     try {
       database.exec(migration.sql);
       database.exec('COMMIT');
+      if (migration.foreignKeysOff) {
+        database.exec('PRAGMA foreign_keys=ON');
+        const violation = database.prepare('PRAGMA foreign_key_check').get();
+        if (violation) throw new Error(`Foreign-key violation after ${migration.name}`);
+      }
       version = migration.version;
     } catch (error) {
-      database.exec('ROLLBACK');
+      if (database.isTransaction) database.exec('ROLLBACK');
+      if (migration.foreignKeysOff) database.exec('PRAGMA foreign_keys=ON');
       throw error;
     }
   }

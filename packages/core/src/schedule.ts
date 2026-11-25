@@ -133,6 +133,9 @@ const mergeCoverageTemplate = (
     inToMin: earlier.inToMin,
     outFromMin: later.outFromMin,
     outToMin: later.outToMin,
+    lateGraceMin: earlier.lateGraceMin ?? 0,
+    checkoutOpenBeforeEndMin: later.checkoutOpenBeforeEndMin ?? 10,
+    otCapMin: later.otCapMin ?? 480,
   };
 };
 

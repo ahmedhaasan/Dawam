@@ -13,6 +13,7 @@ import {
   AuditRepository,
   type Clock,
   type DawamDatabase,
+  type EmployeePurgeCounts,
   type EmployeeRecord,
   type ShiftTemplateRecord,
   systemClock,
@@ -63,7 +64,10 @@ export interface TemplateInput {
   inFromMin: number;
   inToMin: number;
   outFromMin: number;
-  outToMin: number;
+  outToMin: number | null;
+  lateGraceMin: number;
+  checkoutOpenBeforeEndMin: number;
+  otCapMin: number;
   reason: string;
 }
 
@@ -93,8 +97,7 @@ export type WorkforceErrorCode =
   | 'PAIR_SAME_EMPLOYEE'
   | 'REASON_REQUIRED'
   | 'INVALID_PHOTO'
-  | 'EMPLOYEE_MUST_BE_INACTIVE'
-  | 'EMPLOYEE_HAS_HISTORY'
+  | 'DELETE_CONFIRMATION_MISMATCH'
   | 'SCHEDULE_ERROR';
 
 export interface WorkforceError {
@@ -139,6 +142,9 @@ const templateCore = (record: ShiftTemplateRecord) => ({
   inToMin: record.inToMin,
   outFromMin: record.outFromMin,
   outToMin: record.outToMin,
+  lateGraceMin: record.lateGraceMin,
+  checkoutOpenBeforeEndMin: record.checkoutOpenBeforeEndMin,
+  otCapMin: record.otCapMin,
 });
 
 const monthDates = (month: string): readonly string[] | null => {
@@ -185,6 +191,9 @@ export class WorkforceService {
           inToMin: 660,
           outFromMin: 1300,
           outToMin: 1380,
+          lateGraceMin: 0,
+          checkoutOpenBeforeEndMin: 10,
+          otCapMin: 480,
         },
         {
           name: 'Evening',
@@ -195,6 +204,9 @@ export class WorkforceService {
           inToMin: 840,
           outFromMin: 1480,
           outToMin: 1560,
+          lateGraceMin: 0,
+          checkoutOpenBeforeEndMin: 10,
+          otCapMin: 480,
         },
       ];
       for (const item of defaults) {
@@ -390,30 +402,60 @@ export class WorkforceService {
     return { ok: true, value: employeeView(updated, true) };
   }
 
-  deleteEmployee(id: number, reason: string): ServiceResult<true, WorkforceError> {
+  deleteEmployee(
+    id: number,
+    reason: string,
+    confirmation: string,
+  ): ServiceResult<true, WorkforceError> {
     const actor = this.requireManage();
     if (!actor.ok) return actor;
     const before = this.repository.findEmployee(id);
     if (!before) return { ok: false, error: failure('NOT_FOUND') };
-    if (before.active) return { ok: false, error: failure('EMPLOYEE_MUST_BE_INACTIVE') };
     if (!reason.trim()) return { ok: false, error: failure('REASON_REQUIRED') };
-    if (this.repository.hasEmployeeHistory(id, before.deviceUserId)) {
-      return { ok: false, error: failure('EMPLOYEE_HAS_HISTORY') };
+    if (confirmation.trim() !== before.deviceUserId) {
+      return { ok: false, error: failure('DELETE_CONFIRMATION_MISMATCH') };
     }
     this.database.transaction(() => {
-      this.repository.deleteEmployee(id);
+      const removed = this.repository.countEmployeeData(id, before.deviceUserId);
+      // An active employee is deactivated inside the same audited purge transaction.
+      if (before.active) {
+        const deactivated = this.repository.updateEmployee(id, { ...before, active: false });
+        this.audit.append({
+          actorUserId: actor.value.id,
+          action: 'employee.deactivated',
+          entity: 'employee',
+          entityId: String(id),
+          before,
+          after: deactivated,
+          reason,
+        });
+      }
+      this.repository.purgeEmployee(id, before.deviceUserId);
       this.audit.append({
         actorUserId: actor.value.id,
-        action: 'employee.deleted',
+        action: 'employee.purged',
         entity: 'employee',
         entityId: String(id),
-        before,
+        before: {
+          id: before.id,
+          fullName: before.fullName,
+          deviceUserId: before.deviceUserId,
+          removed,
+        },
         after: null,
         reason,
       });
     });
     if (before.photoPath && existsSync(before.photoPath)) unlinkSync(before.photoPath);
     return { ok: true, value: true };
+  }
+
+  employeePurgePreview(id: number): ServiceResult<EmployeePurgeCounts, WorkforceError> {
+    const actor = this.requireManage();
+    if (!actor.ok) return actor;
+    const employee = this.repository.findEmployee(id);
+    if (!employee) return { ok: false, error: failure('NOT_FOUND') };
+    return { ok: true, value: this.repository.countEmployeeData(id, employee.deviceUserId) };
   }
 
   listTemplates(): ServiceResult<readonly ShiftTemplateRecord[], WorkforceError> {
@@ -444,6 +486,9 @@ export class WorkforceService {
         inToMin: input.inToMin,
         outFromMin: input.outFromMin,
         outToMin: input.outToMin,
+        lateGraceMin: input.lateGraceMin,
+        checkoutOpenBeforeEndMin: input.checkoutOpenBeforeEndMin,
+        otCapMin: input.otCapMin,
       });
       this.audit.append({
         actorUserId: actor.value.id,
@@ -490,6 +535,9 @@ export class WorkforceService {
         inToMin: input.inToMin,
         outFromMin: input.outFromMin,
         outToMin: input.outToMin,
+        lateGraceMin: input.lateGraceMin,
+        checkoutOpenBeforeEndMin: input.checkoutOpenBeforeEndMin,
+        otCapMin: input.otCapMin,
       });
       this.audit.append({
         actorUserId: actor.value.id,

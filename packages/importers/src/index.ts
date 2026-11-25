@@ -75,15 +75,25 @@ const parseRawText = (text: string): ParseOutcome | null => {
   const lines = text.replace(/^\uFEFF/, '').split(/\r?\n/);
   const nonBlank = lines.filter((line) => line.trim().length > 0);
   if (nonBlank.length === 0 || !nonBlank.some((line) => line.includes('\t'))) return null;
-  const widths = nonBlank.map((line) => line.split('\t').length);
+  // ZKTeco pads user IDs with leading spaces and/or tabs; that padding is not a column.
+  const cells = (line: string): string[] =>
+    line
+      .replace(/^\s+/, '')
+      .split('\t')
+      .map((column) => column.trim());
+  const widths = nonBlank.map((line) => cells(line).length);
   const sixColumn = widths.filter((width) => width >= 6).length > widths.length / 2;
   const format = sixColumn ? 'ZK_USB_6_COLUMN' : 'ZK_RAW_5_COLUMN';
   const punches: NormalizedPunch[] = [];
   const malformed: MalformedImportRow[] = [];
   lines.forEach((rawLine, index) => {
     if (!rawLine.trim()) return;
-    const columns = rawLine.split('\t').map((column) => column.trim());
+    const columns = cells(rawLine);
     const minimum = sixColumn ? 6 : 5;
+    if (localTimestamp.test(columns[0] ?? '')) {
+      malformed.push({ lineNo: index + 1, rawLine, reason: 'EMPTY_USER_ID' });
+      return;
+    }
     if (columns.length < minimum) {
       malformed.push({ lineNo: index + 1, rawLine, reason: 'INVALID_COLUMN_COUNT' });
       return;
@@ -244,4 +254,105 @@ export const parseAttendanceFile = (bytes: Uint8Array): ParseOutcome => {
     parseCsv(text) ??
     parseRawText(text) ?? { ok: false, error: { code: 'UNKNOWN_FORMAT' } }
   );
+};
+
+export const REPEAT_SCAN_SECONDS = 300;
+
+export interface DeviceIdPunchSummary {
+  deviceUserId: string;
+  punchCount: number;
+  daysWithPunches: number;
+  firstLocal: string;
+  lastLocal: string;
+  exactDuplicates: number;
+  repeatedScans: number;
+}
+
+export interface PunchFileReport {
+  rowsValid: number;
+  exactDuplicates: number;
+  repeatedScans: number;
+  minLocal?: string;
+  maxLocal?: string;
+  daysCovered: number;
+  daysWithPunches: number;
+  byDeviceId: readonly DeviceIdPunchSummary[];
+}
+
+// Wall-clock seconds; matches the engine's 300 s debounce for any gap not crossing a DST change.
+const wallClockSeconds = (local: string): number =>
+  Date.UTC(
+    Number(local.slice(0, 4)),
+    Number(local.slice(5, 7)) - 1,
+    Number(local.slice(8, 10)),
+    Number(local.slice(11, 13)),
+    Number(local.slice(14, 16)),
+    Number(local.slice(17, 19)),
+  ) / 1000;
+
+const compareDeviceIds = (left: string, right: string): number =>
+  left.localeCompare(right, 'en', { numeric: true });
+
+/** Summarizes parsed punches per device ID without touching any stored data. */
+export const summarizePunches = (punches: readonly NormalizedPunch[]): PunchFileReport => {
+  const groups = new Map<string, string[]>();
+  for (const punch of punches) {
+    const times = groups.get(punch.deviceUserId) ?? [];
+    times.push(punch.punchedAtLocal);
+    groups.set(punch.deviceUserId, times);
+  }
+  const allDays = new Set<string>();
+  let exactDuplicates = 0;
+  let repeatedScans = 0;
+  const byDeviceId: DeviceIdPunchSummary[] = [];
+  for (const [deviceUserId, times] of groups) {
+    times.sort();
+    const days = new Set(times.map((time) => time.slice(0, 10)));
+    days.forEach((day) => allDays.add(day));
+    let duplicates = 0;
+    let repeats = 0;
+    let lastKept: string | undefined;
+    for (const time of times) {
+      if (lastKept === time) duplicates += 1;
+      else if (
+        lastKept !== undefined &&
+        wallClockSeconds(time) - wallClockSeconds(lastKept) <= REPEAT_SCAN_SECONDS
+      ) {
+        repeats += 1;
+      } else lastKept = time;
+    }
+    exactDuplicates += duplicates;
+    repeatedScans += repeats;
+    byDeviceId.push({
+      deviceUserId,
+      punchCount: times.length,
+      daysWithPunches: days.size,
+      firstLocal: times[0]!,
+      lastLocal: times.at(-1)!,
+      exactDuplicates: duplicates,
+      repeatedScans: repeats,
+    });
+  }
+  byDeviceId.sort((left, right) => compareDeviceIds(left.deviceUserId, right.deviceUserId));
+  const ordered = punches.map((punch) => punch.punchedAtLocal).sort();
+  const minLocal = ordered[0];
+  const maxLocal = ordered.at(-1);
+  const daysCovered =
+    minLocal && maxLocal
+      ? Math.round(
+          (wallClockSeconds(`${maxLocal.slice(0, 10)} 00:00:00`) -
+            wallClockSeconds(`${minLocal.slice(0, 10)} 00:00:00`)) /
+            86_400,
+        ) + 1
+      : 0;
+  return {
+    rowsValid: punches.length,
+    exactDuplicates,
+    repeatedScans,
+    ...(minLocal ? { minLocal } : {}),
+    ...(maxLocal ? { maxLocal } : {}),
+    daysCovered,
+    daysWithPunches: allDays.size,
+    byDeviceId,
+  };
 };

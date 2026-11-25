@@ -21,7 +21,10 @@ const offsets = (template: ShiftTemplate): number[] => [
   template.inFromMin,
   template.inToMin,
   template.outFromMin,
-  template.outToMin,
+  ...(template.outToMin === null ? [] : [template.outToMin]),
+  template.lateGraceMin ?? 0,
+  template.checkoutOpenBeforeEndMin ?? 10,
+  template.otCapMin ?? 480,
 ];
 
 export const validateShiftTemplate = (
@@ -33,9 +36,12 @@ export const validateShiftTemplate = (
   if (!offsets(template).every(Number.isInteger)) errors.push({ code: 'NON_INTEGER_OFFSET' });
   if (template.endMin <= template.startMin) errors.push({ code: 'INVALID_SHIFT_RANGE' });
   if (template.inFromMin > template.inToMin) errors.push({ code: 'INVALID_IN_WINDOW' });
-  if (template.outFromMin > template.outToMin) errors.push({ code: 'INVALID_OUT_WINDOW' });
+  if (template.outToMin !== null && template.outFromMin > template.outToMin) {
+    errors.push({ code: 'INVALID_OUT_WINDOW' });
+  }
   if (template.inToMin >= template.outFromMin) errors.push({ code: 'WINDOWS_OVERLAP' });
-  if (template.outToMin >= template.inFromMin + 1440) {
+  const effectiveOutTo = template.outToMin ?? template.endMin + (template.otCapMin ?? 480);
+  if (effectiveOutTo >= template.inFromMin + 1440) {
     errors.push({ code: 'ADJACENT_DAY_WINDOWS_OVERLAP' });
   }
   return errors.length > 0 ? { ok: false, error: errors } : { ok: true, value: template };
@@ -45,7 +51,8 @@ export const validateAdjacentTemplates = (
   previous: ShiftTemplate,
   next: ShiftTemplate,
 ): Result<true, TemplateError> => {
-  if (previous.outToMin >= next.inFromMin + 1440) {
+  const previousOutTo = previous.outToMin ?? previous.endMin + (previous.otCapMin ?? 480);
+  if (previousOutTo >= next.inFromMin + 1440) {
     return { ok: false, error: { code: 'ADJACENT_DAY_WINDOWS_OVERLAP' } };
   }
   return { ok: true, value: true };

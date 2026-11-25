@@ -44,4 +44,13 @@ describe('shift template validation', () => {
     });
     expect(validateAdjacentTemplates(morning, evening).ok).toBe(true);
   });
+
+  it('rejects an open-ended OUT cap that reaches the next IN window', () => {
+    expect(
+      validateAdjacentTemplates({ ...evening, outToMin: null, otCapMin: 800 }, morning),
+    ).toEqual({
+      ok: false,
+      error: { code: 'ADJACENT_DAY_WINDOWS_OVERLAP' },
+    });
+  });
 });

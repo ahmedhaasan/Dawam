@@ -14,6 +14,175 @@ Rule: update in the same change as each step. Entry format below. Never mark a c
 
 ## History
 
+## 2026-11-25 — Payroll clarity: charged-day formula, wrapped statuses, and coverage
+
+- Done:
+  - documented and tested the reported 69-minute / EGP 1,200 case: with the active `full_day_any` rule, six affected dates are charged at the EGP 200 daily wage, so the result is `6 × EGP 200 = EGP 1,200`; the EGP 100 late-hour price is deliberately inactive for this method;
+  - the payroll breakdown now shows both total late minutes and the number of charged dates, plus the explicit charged-days × daily-wage formula whenever a full-day method contributes to the total;
+  - long localized attendance statuses wrap and remain contained in the status column instead of overlapping the scheduled-shift column;
+  - coverage days show a localized Coverage badge next to their merged shift time, using the existing coverage colour token;
+  - lateness and overtime selectors now have distinct warning/positive pills and RTL/LTR-aware directional cues while retaining the established payroll structure and colours;
+  - fixed the follow-up table-paint regression by keeping the shift `<td>` as a native table cell and moving its wrapping layout into an inner container. This restores continuous row backgrounds and aligned borders while preserving status wrapping and the Coverage badge.
+- Validation run (commands + result): `CI=true pnpm check` PASS (ESLint 0 warnings, all strict workspace typechecks, 20 test files and 131/131 tests). `CI=true pnpm build` PASS for Electron main, sandboxed preload, and renderer. The focused core payroll suite passed 76/76 tests, including the new 69-minute/six-date regression. Follow-up regression validation: direct Electron main/renderer TypeScript PASS, targeted ESLint PASS, targeted Prettier PASS, and `git diff --check` PASS. Live Electron/CDP inspection at a 1500×900 viewport confirmed 11 cells per payroll row; status and shift remain `table-cell`, share the exact row height, and retain matching white/rest/review backgrounds without the reported white blocks or displaced borders.
+- PENDING checks: owner visual acceptance with the real payroll data in Arabic and English.
+- Blockers / new open decisions: none. The calculation was not changed because it already follows the selected full-day rule; the presentation now makes the active formula unambiguous.
+- Next: owner checks the open payroll screen at full size and a resized window, then confirms the wrapped status, Coverage badge, selector cues, and formula wording.
+
+## 2026-11-24 — Follow-up 2: attendance stickiness/last rows, payroll v3 layout
+
+- New `useStickyOffsets` hook publishes the live top-bar and toolbar heights as CSS variables (`--topbar-h`, `--sticky-bar-h`).
+- Attendance: the employee/month toolbar is now sticky at every width; it was previously disabled at 1000px and below, which matched the user's window. It is static only when the height is 560px or less. The day table is sized to the visible area under the toolbar, and `overscroll-behavior: contain` was removed so wheel scrolling chains to the page. The last days (29–30 Nov) are now reachable.
+- Payroll "Layout v3", following `payroll_mockup_v3`:
+  - At 1560px and wider: a sticky 330px summary panel (net, counters, breakdown, current rules, actions) beside a full-height day table.
+  - Below 1560px: a net banner, then counters, breakdown and rules in three columns above the table.
+  - The day table uses a fixed column plan, so the status column no longer swallows width. It fits without horizontal scroll at 1366, 1440 and 1920.
+  - Per-day method selects are stacked with "Late" and "Overtime" tags.
+  - Removed the "Layout v2" CSS block.
+- Validation: `pnpm lint`, `pnpm typecheck` and `CI=true pnpm test` (130/130) pass, and `pnpm build` passes. Harness screenshots were checked with no horizontal page overflow: payroll ar/en at 1000, 1366, 1440 and 1920; attendance ar/en at 1000, 1366 and 1920, scrolled to the bottom.
+- PENDING: manual check on the user's real machine and data.
+
+## 2026-11-24 — Follow-up: attendance/payroll space use, Settings typography, device format notes
+
+- Done:
+  - **Fonts:** an old `[dir='ltr'] body` rule switched English to Segoe/Arial while controls used Cairo, which mixed the fonts on Payroll and Settings. Cairo is now used in both directions.
+  - **Payroll:** the stacked summary grid never applied below 1600px, because the base `.pb-summary { display:flex }` rule came later and overrode it, leaving narrow cards and empty space.
+    - The summary is now a two-column grid (one column below 1100px) with a full-width net-salary banner.
+    - The day table is denser: 15px text and a minimum width of 1120px instead of 1320px, so there is less sideways scrolling.
+  - **Monthly attendance:** the employee/month toolbar is sticky under the top bar; it becomes static at ≤1000px wide or ≤640px tall. The summary tiles now stretch to fill each row.
+  - **Settings:** same type scale as the rest of the app: 22px headings, 15–16px labels, inputs and notes, 44px buttons, readable table actions, equal input heights.
+  - **Device format (from `test data/1_attlog (1).dat`, ZKTeco/LX50 USB export):** 6 tab-separated columns:
+    - `PIN` (right-aligned with spaces), `YYYY-MM-DD HH:MM:SS`, machine no. (`1`), state (`0` on every row; the device does not record IN/OUT), verify mode (`1` fingerprint, `0` password/other), work code (`0`).
+    - One PIN covers all of an employee's enrolled fingers.
+    - In/out is therefore derived from shift windows, never from the state column. The parser already handles this.
+- Validation run: see the commands below (lint, typecheck, test, build); Playwright screenshots of payroll, attendance and settings at 1280 and 1920, ar and en, with no horizontal overflow.
+- PENDING checks: none new.
+
+### 2026-12-05 — Enhancement pass: final integration, responsive QA and change log
+
+- Done:
+  - **Global design:** applied the "new payroll and design" fonts, colors and structure app-wide. Body text is larger and headings are heavier. z-index layers (`--z-sticky-head`, `--z-sticky-col`, `--z-dialog`) cover sticky headers, sticky columns and dialogs. Dialogs render in a portal on `document.body`.
+  - **Shell:** collapsible sidebar that remembers its state (`dawam.sidebarCollapsed`) and stays sticky. Window `minWidth` lowered to 860.
+  - **Settings:** "Reset all app data" with a typed `RESET` confirmation and an optional backup export first.
+  - **Overflow/sticky root causes fixed:**
+    - `overflow-x: hidden` on html/body made the body a scroll container, so the sidebar scrolled away. Now `overflow-x: clip`.
+    - RTL sticky cells inside the schedule's scroll box leaked width to the page. Fixed with `contain: paint` on `.wf-team-wrap`.
+    - The payroll layout stacks below 1600px so the day table keeps its width.
+  - **Payroll:** the column "Day net" is renamed "Day adjustment (±)": it shows bonus − deductions for the day, not the base salary.
+  - **Fixture:** `attlog_november_2026_test.dat` contained 17 real-device lines for IDs 1 and 7. Removed them, leaving 430 lines for IDs 2–6 only. The importer test was updated to match.
+- Validation run (commands + result):
+  - `pnpm lint`: pass.
+  - `pnpm typecheck`: pass.
+  - `CI=true pnpm test`: 20 files, 130 tests passed, including the November acceptance test.
+  - `pnpm build`: pass.
+  - Playwright/Electron screenshots (outside the repo):
+    - 7 screens × {900, 1366, 1440, 1920} × {ar, en}: no page-level horizontal overflow, no page errors.
+    - Dialogs (payroll rules, attendance edit, add employee, add shift, delete employee) at 1366: no overlap.
+- PENDING checks:
+  - Manual click-through of save flows on a real device export.
+  - The real-device-file test is skipped when the file is absent.
+- Blockers / new open decisions: none (payroll choices recorded in ADR-19).
+- Next: user acceptance on real data.
+
+#### Change log (this enhancement pass)
+
+- **Attendance:**
+  - new statuses EARLY_LEAVE and REVIEW;
+  - scans within 5 minutes merge into one punch;
+  - after-midnight punches belong to the previous workday;
+  - icon actions (check-in / check-out / edit), with a required reason;
+  - sticky header, date column and actions column;
+  - a status guide and "+1" next-day badges.
+- **Import:**
+  - re-import replaces punches for the same device ID and date, so there is no stale data;
+  - validation report (parsed rows, bad rows, unknown IDs, duplicates, repeat scans, date range, punches per employee, rows replaced);
+  - tab-padded IDs are parsed.
+  - Employee 3 / 26 Nov "no check-in/out": not reproducible on a clean import (now IN 09:43, OUT 23:25 = EARLY_LEAVE). Root cause was stale punches accumulating under `INSERT OR IGNORE`; fixed by replace-on-reimport, with a regression test.
+- **Employees:**
+  - new grouped Add/Edit form with inline validation;
+  - delete fixed (Electron does not support `window.prompt()`), using an in-app dialog with a purge preview and typed confirmation; re-create plus re-import works with no orphan rows.
+- **Shifts:** new form with shift start/end (overnight), check-in and check-out windows, grace, and a live timeline.
+- **Schedule:** team table plus a per-employee calendar; rest and cover days styled differently.
+- **Payroll:**
+  - summary panel (net, breakdown, counters, active rule) plus a sticky day table;
+  - one rules dialog ordered as shared prices → late method → overtime method;
+  - per-minute late price = hour price ÷ 60, shown read-only;
+  - per-day method override uses the shared prices, and a custom amount requires a reason;
+  - totals equal the sum of the days.
+- **Settings:** Reset all app data.
+- **Shell:** collapsible sidebar; responsive down to about 900px.
+
+### 2026-11-24 — Enhancement: employees, shifts and monthly schedule redesign; employee purge fix
+
+- Done:
+  - **Delete bug root cause:** the Employees screen collected the typed device ID and the reason with `window.prompt()`. Electron does not support `prompt()` (it returns `null`), so the handler returned silently and never reached IPC. The service, IPC schema and purge SQL were correct.
+  - **Delete fix:** new in-app `EmployeeDeleteDialog` built on a new `workforce:employees:purge-preview` IPC (zod-validated, manage role). It lists what will be removed, requires a reason plus the exact typed device ID, and calls `deleteEmployee`. The service now deactivates an active employee in the same transaction, with an `employee.deactivated` audit record before `employee.purged` (DOMAIN_RULES §9 updated). The new repository `countEmployeeData` provides the counts.
+  - **Test:** extended `apps/desktop/tests/workforce-service.test.ts`. It sets up device ID `0042` with schedule, pair, rest, override, leave, imported punches, correction, approved payroll run and resolved quarantine, then:
+    - deletes the active employee;
+    - checks every table column `employee_id`/`employee_a`/`employee_b`/`resolved_employee_id`/`device_user_id` for orphans, plus `PRAGMA foreign_key_check`;
+    - checks the audit chain;
+    - re-creates `0042` and re-imports cleanly.
+  - **Employees screen:** larger type, search and status filter, cleaner table. `EmployeeForm` dialog with grouped fieldsets:
+    - Identity, Employment + Pay, and Schedule (shift, weekly rest, coverage teammate);
+    - a live coverage explanation (merged hours, warning when both teammates rest on the same day);
+    - inline per-field validation, with duplicate device ID shown inline from both a client check and the server error;
+    - 2 columns, 1 column under 900 px; the dialog fits the viewport and scrolls internally.
+  - **Shifts screen:** cards with a compact `ShiftTimeline` on a shared range. `ShiftForm` dialog:
+    - HH:mm inputs with +1/−1 day badges, check-in from/to, check-out from/until or open-ended (`outToMin = null`, OT cap enabled), and late grace;
+    - a live 24–36 h timeline (shift, grace, late marker, check-in/out windows, midnight), built with logical properties so it is RTL-correct;
+    - help text for first-IN/last-OUT, late, overtime and midnight;
+    - client validation mirroring core `validateShiftTemplate`, with server `details` codes mapped to fields.
+  - **Monthly schedule:** a "team" month table (employees × days) that scrolls in its own container, with sticky header, sticky name column and a sticky corner via `--z-sticky-*`. There is also a per-employee calendar with counts. SHIFT, COVERAGE, REST (hatched), COVERAGE_NEEDED (red, highlighted), NO_SCHEDULE and leave each have a distinct colour, a label and a legend entry.
+  - **Plumbing:** new files `WfDialog.tsx`, `EmployeeForm.tsx`, `EmployeeDeleteDialog.tsx`, `ShiftForm.tsx`, `ShiftTimeline.tsx` and `workforceShared.ts`. All CSS is in `styles/workforce.css`, scoped under `.wf-*` roots. New `wf.*` i18n keys in ar and en.
+- Validation run: `pnpm typecheck` PASS; `pnpm lint` PASS (0 warnings); `CI=true pnpm test` PASS (20 files, 130 tests); `pnpm build` PASS.
+- PENDING checks: visual RTL/LTR check of the three screens and dialogs at 900, 1366×768, 1440×900 and 1920×1080 in the running app.
+- Blockers / new open decisions: none.
+
+### 2026-11-24 — Enhancement: payroll screen redesign (rules dialog, summary panel, day table)
+
+- Done: rewrote `PayrollScreen.tsx` as a summary panel (large net salary; breakdown base → absence → late → overtime → custom adjustments → net, matching the engine total; counters for present/absent/rest/early-leave/review/late min/overtime min; "Active rules" card with method, price explanation, grace and an Edit rules button; month salary override; approve/print) next to a day table that scrolls in its own container with sticky header, sticky date (start) and day-net (end) columns, opaque backgrounds and z-index tokens (logical `inset-inline-*`, works RTL/LTR). Columns: date, status, shift, actual IN/OUT (+1/−1 day badge), late min (+ early-leave minutes), late deduction, overtime min (+ counted), overtime addition, per-day method overrides (custom amount needs a reason), day net. New `PayrollRulesDialog.tsx` puts late and overtime side by side: 1) shared prices, 2) default late method, 3) default overtime method, with live explanations. Helpers in `payroll-rules.ts`; CSS in `styles/payroll.css` scoped under `.payroll-board`. Payroll re-reads attendance on mount, employee/month change, window visibility, and via a Refresh button. Core: `presentDays` now includes `EARLY_LEAVE` (ADR-19). New core test covers EARLY_LEAVE/REVIEW handling, shared-price repricing (including overridden days) and totals = sum of per-day results. i18n `payroll.board.*` keys in ar and en.
+- Validation run: `pnpm typecheck` PASS; `pnpm lint` PASS (0 warnings); `pnpm build` PASS; `CI=true pnpm test` 129/130 PASS — the only failure is `packages/importers/tests/importers.test.ts` (synthetic November fixture row count, owned by concurrent import work, unrelated to payroll).
+- PENDING checks: visual RTL/LTR check of the payroll screen and rules dialog at 900–1920 px in the running app.
+- Blockers / new open decisions: none.
+
+### 2026-11-24 — Enhancement: import validation report
+
+- Done: pure `summarizePunches` in `packages/importers` (valid rows, exact duplicate lines, repeated scans ≤300 s per ID using the engine's debounce rule, covered date range/days, per-ID count/days/first/last); raw ZK parser now strips leading spaces **and tabs** before the ID column (previously a tab-padded ID became an empty column). `ImportRepository.countDayPunchesToReplace` (read-only, shares selection with `deleteDayPunches`). `ImportService.preview` and `commit` return `report` (bad rows first 50 with line + reason, unknown IDs with counts, per-employee table with names/status, stored punches to replace); commit adds `rowsReplaced`. Import wizard shows summary cards, collapsible bad rows, a sticky-header scrolling per-employee table, a post-commit result dialog saying attendance and payroll now use the new data (ar+en); dialogs portal to `document.body`; styles in `styles/import.css`.
+- Validation run: `pnpm lint` PASS; `CI=true pnpm test` PASS (20 files, 130 tests); `pnpm build` PASS; `pnpm typecheck` FAILS only in `PayrollRulesDialog.tsx` (concurrent work by another agent, not import code). Local real export `test data /1_attlog (1).dat` (read in place, skipped when absent): 91 rows, 0 malformed, IDs 1→5, 2→11, 3→19, 4→20, 5→19, 6→5, 7→12.
+- PENDING: visual RTL/LTR check of the report at 900–1920 px in the running app.
+- Blockers: `tests/fixtures/synthetic/attlog_november_2026_test.dat` contains 17 lines identical to the real export (IDs 1 and 7); it is not purely synthetic and must be sanitized before it is committed.
+
+### 2026-12-05 — Enhancement pass 1: November acceptance, import replace, sidebar, app reset
+
+- Done: added `EARLY_LEAVE` (OUT before the checkout window opens) and `REVIEW` (an unmatched punch between IN window end and OUT window start) statuses to core, summary, i18n and styles. Imports now replace stored punches for the same device ID and date that are absent from the newer file (inside the commit transaction, count in the audit record), fixing stale monthly data after re-import. Added a collapsible sidebar (state in localStorage), Settings > "Reset all app data" (typed `RESET`, keeps users/settings/shift templates/audit; backup card above is the optional export), and global CSS safeguards (no horizontal page scroll, bolder body/headings, z-index tokens). Added synthetic fixtures `tests/fixtures/synthetic/attlog_november_2026_test.dat` and `expected_results_november_2026.csv`, plus `apps/desktop/tests/november-acceptance.test.ts` (matches the CSV for IDs 2-6, emp 3 on 26 Nov regression, replace-on-reimport). Acceptance setup uses a 20-minute grace, IN window start..start+120 min and open-ended OUT zones.
+- Validation run: `CI=true pnpm test` 20 files / 124 tests PASS; `pnpm typecheck` PASS; `pnpm lint` PASS (0 warnings).
+- PENDING checks: emp 3 on 26 Nov already resolved correctly by the engine in the acceptance setup (the UI symptom likely came from stale/old punches or template windows; not reproducible with fresh import). Not yet done: import validation report UI, Add employee/Shift redesigns with timeline, schedule restyle, attendance icon actions and sticky-column rework, payroll layout redesign (side-by-side rules, summary panel), responsive checks at 1366/1440/1920/900 widths, build.
+- Blockers / new open decisions: none.
+- Next: attendance table sticky/icon rework, then payroll redesign per `new payroll and design`.
+
+### 2026-11-24 — M9c DONE: operational polish, destructive controls, and responsive desktop layout
+
+- Done: aligned the complete renderer with the offline Cairo typography and payroll color/weight system; added responsive desktop breakpoints for compact and full-width windows; replaced unclear attendance action icons with bilingual text; made import, attendance, and payroll table controls sticky where they scroll; clarified that the import preview sample contains raw device IDs rather than only unknown employees; and made payroll load the selected employee-month automatically with its per-day editor inline beneath the selected row. Corrected attendance evaluation so a complete accepted IN/OUT pair is PRESENT immediately while `NOT_CLOSED` is only an incomplete, still-open shift and now reads “waiting for checkout.” Added an exact device-ID-confirmed employee purge that removes the employee and all employee-owned schedules, punches, corrections, payroll runs, leave, quarantine, and ignored-ID state so a later import starts clean. Added an administrator-only audit-history reset that requires `RESET`, a reason, and confirmation, then leaves a new cryptographically valid reset marker.
+- Validation run (commands + result): `CI=true pnpm check` PASS with ESLint 0 warnings, every strict TypeScript project PASS, and 19 test files / 118 tests PASS. The new regression proves a 10:00 IN and 21:52 OUT is PRESENT with 8 early-leave minutes even before the configured OUT zone closes. Database/service tests prove exact-confirmation purge, related-record removal, safe re-import state, audit-reset marker creation, deletion protection restoration, and valid audit-chain verification. `CI=true pnpm build` PASS for Electron main, sandboxed CommonJS preload, renderer, and bundled Cairo assets. `git diff --check` PASS.
+- PENDING checks: the ordinary browser renderer cannot exercise authenticated screens because the Electron preload bridge is intentionally unavailable outside the desktop shell. Final interactive Arabic/English review at compact Windows window sizes, real USB import, clean install, and upgrade preservation remain target-PC acceptance tasks.
+- Blockers / new open decisions: none for local implementation. Employee purge and audit reset are intentionally separate destructive operations; neither is performed automatically.
+- Next: owner reviews the updated Mac Electron preview, then rebuild and validate the versioned Windows installer after approval.
+
+### 2026-11-24 — M6b DONE: payroll review v2 and design-system alignment
+
+- Done: reconciled every Markdown and HTML reference in `new payroll and design` using the v3 specification as the latest authority. Added documented payroll-v2 decisions, requirements, domain rules, UI specification, and shared design tokens. Implemented a pure integer-piastre engine for no deduction, exact minutes, configurable hours, any-lateness full day, threshold full day, and reason-required custom deductions; added independent overtime pricing by fixed hour or extra workday, per-date inclusion/override decisions, absence pricing, negative-result warnings, and immutable approval inputs/results. Rebuilt the bilingual Payroll screen around employee/month controls, day review and month-rule tabs, per-date explanations and overrides, separate lateness/overtime apply actions, KPI/summary totals, month-only salary override with an explicit optional employee-record update, printing, approval confirmation, and retained approval history. Bundled Cairo 500/700/800 locally for offline Arabic rendering and excluded the supplied static design-reference runtime bundles from source linting.
+- Validation run (commands + result): ESLint PASS with 0 warnings; all strict TypeScript projects PASS; full Vitest PASS at 19 files and 116/116 tests; focused payroll engine/service PASS at 29/29 tests; production `electron-vite build` PASS for main, sandboxed preload, renderer, and bundled Cairo assets. The built Electron app was visually inspected in Arabic RTL and English LTR; evidence is stored in `docs/screenshots/m6b-payroll-ar.png`, `m6b-payroll-en.png`, and `m6b-payroll-rules-ar.png`.
+- PENDING checks: repeat the final payroll workflow with real employee attendance and salary data on the target Windows PC, then rebuild the versioned Windows installer after owner approval. A payroll approval and an optional permanent employee-salary update are separately audited operations; if the second operation fails, the approved immutable run remains valid and the UI reports the employee update failure.
+- Blockers / new open decisions: none for implementation. Real accounting policy values remain administrator choices; the app never silently chooses a deduction or overtime award.
+- Next: owner reviews the Mac build with representative employee data, then complete Windows release acceptance and installer packaging.
+
+### 2026-11-23 — M9a DONE: attendance rules v2
+
+- Done: documented D-16–D-19 and ATT-8–ATT-11; added forward-only, data-preserving migration v7 for per-template late grace, checkout-open offset, overtime cap, and nullable/open-ended OUT zones. The pure attendance engine now keeps immutable raw rows while debouncing repeated scans within 300 seconds, reports ignored duplicate IDs, accepts measurable early checkout after IN, flags stays under 180 minutes as `SHORT_STAY`, applies whole-minute grace, prevents an open-ended OUT from consuming the next shift's IN, and calculates dated/monthly overtime. Attendance now returns actual and scheduled times, displays overtime and review flags in Arabic/English, explains `NOT_CLOSED`, and exposes the new template controls. Payroll calculation logic was not changed by M9a.
+- Validation run (commands + result): attendance tests were written before implementation and initially failed in the seven expected rule areas. `CI=true pnpm check` PASS (ESLint 0 warnings, all workspace typechecks, 19 test files and 110/110 tests). `CI=true pnpm --filter @dawam/core test:coverage` PASS at 96.64% lines / 100% functions. `CI=true pnpm format:check` PASS. `CI=true pnpm build` PASS for Electron main, sandboxed CommonJS preload, and renderer. Migration tests prove a version-6 database retains its template ID and assignment while receiving the new defaults and passing `PRAGMA foreign_key_check`.
+- PENDING checks: owner review of the refreshed Mac development UI; final Arabic/English visual QA and Windows target-PC upgrade/import checks remain part of release acceptance. The private real device export remains outside the repository; tests use sanitized/synthetic timestamp scenarios only.
+- Blockers / new open decisions: D-16–D-19 remain OPEN with documented defaults so production values can be changed per template without rewriting raw punches.
+- Next: collect owner feedback in the Mac preview, then include approved changes in the next versioned Windows installer.
+
 ### 2026-11-09 — M8 started: Windows x64 NSIS installer
 
 - Done: added a guided per-user NSIS installer configuration for Windows x64 with a branded Dawam icon, selectable installation directory, desktop and Start menu shortcuts, ASAR packaging, deterministic artifact naming, and explicit preservation of application data during uninstall/upgrade. Added a root `pnpm dist:win` command with publishing disabled. Cross-built `Dawam-Setup-0.1.0-x64.exe` successfully from macOS and inspected the packaged ASAR for the main process, sandboxed preload, renderer, package metadata, and required Zod runtime dependency. Added a target-PC acceptance checklist covering installer hash verification, persistence, Arabic/English layout, exact device-ID entry, verified eFace 10 DAT import, duplicate safety, shared multi-admin data, encrypted backup/restore, and upgrade preservation.

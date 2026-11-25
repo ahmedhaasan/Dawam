@@ -11,6 +11,8 @@ import {
 } from '@dawam/db';
 import {
   parseAttendanceFile,
+  summarizePunches,
+  type DeviceIdPunchSummary,
   type NormalizedPunch,
   type ParseFailureCode,
   type ParseResult,
@@ -31,6 +33,30 @@ export interface CommitImportInput extends ImportFileInput {
   coverageConfirmed: true;
 }
 
+export const REPORT_MALFORMED_LIMIT = 50;
+
+export interface ImportReportRow extends DeviceIdPunchSummary {
+  status: 'KNOWN' | 'UNKNOWN' | 'IGNORED';
+  employeeId?: number;
+  employeeName?: string;
+  punchesToReplace: number;
+}
+
+export interface ImportReport {
+  rowsValid: number;
+  rowsMalformed: number;
+  malformed: ParseResult['malformed'];
+  exactDuplicates: number;
+  repeatedScans: number;
+  minLocal?: string;
+  maxLocal?: string;
+  daysCovered: number;
+  daysWithPunches: number;
+  unknownDeviceIds: readonly { deviceUserId: string; punchCount: number }[];
+  punchesToReplace: number;
+  byDeviceId: readonly ImportReportRow[];
+}
+
 export interface ImportPreview {
   filename: string;
   format: ParseResult['format'];
@@ -41,10 +67,12 @@ export interface ImportPreview {
   predictedNew: number;
   predictedDuplicate: number;
   predictedQuarantined: number;
+  predictedIgnored: number;
   minLocal?: string;
   maxLocal?: string;
   sample: readonly NormalizedPunch[];
   malformed: ParseResult['malformed'];
+  report: ImportReport;
 }
 
 export interface ImportCommitSummary {
@@ -53,7 +81,10 @@ export interface ImportCommitSummary {
   rowsNew: number;
   rowsDuplicate: number;
   rowsQuarantined: number;
+  rowsIgnored: number;
   rowsMalformed: number;
+  rowsReplaced: number;
+  report: ImportReport;
 }
 
 export interface QuarantinedPunchView {
@@ -91,6 +122,23 @@ const decodedFile = (
 
 const parserError = (code: ParseFailureCode): ImportServiceError => serviceError(code);
 
+/** Times present in the file for each device ID and local date (`id|YYYY-MM-DD`). */
+const timesByDeviceDay = (punches: readonly NormalizedPunch[]): Map<string, string[]> => {
+  const days = new Map<string, string[]>();
+  for (const punch of punches) {
+    const key = `${punch.deviceUserId}|${punch.punchedAtLocal.slice(0, 10)}`;
+    const times = days.get(key) ?? [];
+    times.push(punch.punchedAtLocal);
+    days.set(key, times);
+  }
+  return days;
+};
+
+const splitDayKey = (key: string): { deviceUserId: string; date: string } => {
+  const separator = key.lastIndexOf('|');
+  return { deviceUserId: key.slice(0, separator), date: key.slice(separator + 1) };
+};
+
 export class ImportService {
   private readonly imports: ImportRepository;
   private readonly workforce: WorkforceRepository;
@@ -106,6 +154,53 @@ export class ImportService {
     this.audit = new AuditRepository(database, clock);
   }
 
+  /** Read-only validation report; never writes to the database. */
+  private buildReport(parsed: ParseResult): ImportReport {
+    const summary = summarizePunches(parsed.punches);
+    const replaceByDevice = new Map<string, number>();
+    for (const [key, times] of timesByDeviceDay(parsed.punches)) {
+      const { deviceUserId, date } = splitDayKey(key);
+      const count = this.imports.countDayPunchesToReplace(deviceUserId, date, times);
+      replaceByDevice.set(deviceUserId, (replaceByDevice.get(deviceUserId) ?? 0) + count);
+    }
+    const byDeviceId: ImportReportRow[] = summary.byDeviceId.map((row) => {
+      const punchesToReplace = replaceByDevice.get(row.deviceUserId) ?? 0;
+      if (this.imports.isDeviceIdIgnored(row.deviceUserId)) {
+        return { ...row, status: 'IGNORED', punchesToReplace };
+      }
+      const resolvedId = this.imports.resolvedEmployeeForDeviceId(row.deviceUserId);
+      const employee =
+        this.workforce.findEmployeeByDeviceId(row.deviceUserId) ??
+        (resolvedId ? this.workforce.findEmployee(resolvedId) : null);
+      if (employee) {
+        return {
+          ...row,
+          status: 'KNOWN',
+          employeeId: employee.id,
+          employeeName: employee.fullName,
+          punchesToReplace,
+        };
+      }
+      return { ...row, status: resolvedId ? 'KNOWN' : 'UNKNOWN', punchesToReplace };
+    });
+    return {
+      rowsValid: summary.rowsValid,
+      rowsMalformed: parsed.malformed.length,
+      malformed: parsed.malformed.slice(0, REPORT_MALFORMED_LIMIT),
+      exactDuplicates: summary.exactDuplicates,
+      repeatedScans: summary.repeatedScans,
+      ...(summary.minLocal ? { minLocal: summary.minLocal } : {}),
+      ...(summary.maxLocal ? { maxLocal: summary.maxLocal } : {}),
+      daysCovered: summary.daysCovered,
+      daysWithPunches: summary.daysWithPunches,
+      unknownDeviceIds: byDeviceId
+        .filter((row) => row.status === 'UNKNOWN')
+        .map((row) => ({ deviceUserId: row.deviceUserId, punchCount: row.punchCount })),
+      punchesToReplace: byDeviceId.reduce((total, row) => total + row.punchesToReplace, 0),
+      byDeviceId,
+    };
+  }
+
   preview(input: ImportFileInput): ServiceResult<ImportPreview, ImportServiceError> {
     const actor = this.auth.authorize('import.run');
     if (!actor.ok) return actor;
@@ -116,11 +211,14 @@ export class ImportService {
     let predictedNew = 0;
     let predictedDuplicate = 0;
     let predictedQuarantined = 0;
+    let predictedIgnored = 0;
     for (const punch of parsed.value.punches) {
       const known =
         this.workforce.findEmployeeByDeviceId(punch.deviceUserId) ??
         this.imports.resolvedEmployeeForDeviceId(punch.deviceUserId);
-      if (!known) {
+      if (this.imports.isDeviceIdIgnored(punch.deviceUserId)) {
+        predictedIgnored += 1;
+      } else if (!known) {
         if (this.imports.hasQuarantined(punch.deviceUserId, punch.punchedAtLocal)) {
           predictedDuplicate += 1;
         } else predictedQuarantined += 1;
@@ -142,10 +240,12 @@ export class ImportService {
         predictedNew,
         predictedDuplicate,
         predictedQuarantined,
+        predictedIgnored,
         ...(parsed.value.minLocal ? { minLocal: parsed.value.minLocal } : {}),
         ...(parsed.value.maxLocal ? { maxLocal: parsed.value.maxLocal } : {}),
         sample: parsed.value.punches.slice(0, 10),
-        malformed: parsed.value.malformed.slice(0, 50),
+        malformed: parsed.value.malformed.slice(0, REPORT_MALFORMED_LIMIT),
+        report: this.buildReport(parsed.value),
       },
     };
   }
@@ -161,6 +261,7 @@ export class ImportService {
     const parsed = parseAttendanceFile(decoded.value.bytes);
     if (!parsed.ok) return { ok: false, error: parserError(parsed.error.code) };
     const summary = this.database.transaction(() => {
+      const report = this.buildReport(parsed.value);
       const batchId = this.imports.createBatch({
         filename: decoded.value.filename,
         sha256: createHash('sha256').update(decoded.value.bytes).digest('hex'),
@@ -173,6 +274,12 @@ export class ImportService {
       let rowsNew = 0;
       let rowsDuplicate = 0;
       let rowsQuarantined = 0;
+      let rowsIgnored = 0;
+      let rowsReplaced = 0;
+      for (const [key, times] of timesByDeviceDay(parsed.value.punches)) {
+        const { deviceUserId, date } = splitDayKey(key);
+        rowsReplaced += this.imports.deleteDayPunches(deviceUserId, date, times);
+      }
       for (const punch of parsed.value.punches) {
         const stored = {
           batchId,
@@ -185,7 +292,12 @@ export class ImportService {
         const known =
           this.workforce.findEmployeeByDeviceId(punch.deviceUserId) ??
           this.imports.resolvedEmployeeForDeviceId(punch.deviceUserId);
-        if (!known) {
+        if (this.imports.isDeviceIdIgnored(punch.deviceUserId)) {
+          if (this.imports.insertQuarantined(stored)) {
+            this.imports.markIgnoredPunches(punch.deviceUserId, this.clock.now().toISOString());
+            rowsIgnored += 1;
+          } else rowsDuplicate += 1;
+        } else if (!known) {
           if (this.imports.insertQuarantined(stored)) rowsQuarantined += 1;
           else rowsDuplicate += 1;
         } else if (
@@ -208,14 +320,26 @@ export class ImportService {
         rowsNew,
         rowsDuplicate,
         rowsQuarantined,
+        rowsIgnored,
         rowsMalformed: parsed.value.malformed.length,
+        rowsReplaced,
+        report,
       };
       this.audit.append({
         actorUserId: actor.value.id,
         action: 'attendance.import_committed',
         entity: 'import_batch',
         entityId: String(batchId),
-        after: value,
+        after: {
+          batchId,
+          rowsTotal,
+          rowsNew,
+          rowsDuplicate,
+          rowsQuarantined,
+          rowsIgnored,
+          rowsMalformed: value.rowsMalformed,
+          rowsReplaced,
+        },
         reason: 'confirmed_usb_import',
       });
       return value;
@@ -266,6 +390,36 @@ export class ImportService {
           employeeId: employee.id,
         },
         reason: input.reason,
+      });
+    });
+    return { ok: true, value: true };
+  }
+
+  ignoreDeviceId(input: {
+    quarantineId: number;
+    reason: string;
+  }): ServiceResult<true, ImportServiceError> {
+    const actor = this.auth.authorize('import.run');
+    if (!actor.ok) return actor;
+    const punch = this.imports.findQuarantined(input.quarantineId);
+    if (!punch || punch.resolvedEmployeeId !== null) {
+      return { ok: false, error: serviceError('QUARANTINE_NOT_FOUND') };
+    }
+    const ignoredAt = this.clock.now().toISOString();
+    this.database.transaction(() => {
+      this.imports.ignoreDeviceId(
+        punch.deviceUserId,
+        input.reason.trim(),
+        actor.value.id,
+        ignoredAt,
+      );
+      this.audit.append({
+        actorUserId: actor.value.id,
+        action: 'attendance.device_id_ignored',
+        entity: 'device_user_id',
+        entityId: punch.deviceUserId,
+        after: { deviceUserId: punch.deviceUserId, ignoredAt },
+        reason: input.reason.trim(),
       });
     });
     return { ok: true, value: true };

@@ -25,12 +25,12 @@ describe('punch matching', () => {
       ],
     );
     expect(result.shifts[0]?.punchIn?.rawPunchId).toBe('in-first');
-    expect(result.shifts[0]?.punchOut?.rawPunchId).toBe('out-last');
-    expect(result.shifts[0]?.hours).toBeCloseTo(12.25);
+    expect(result.shifts[0]?.punchOut?.rawPunchId).toBe('out-first');
+    expect(result.shifts[0]?.hours).toBeCloseTo(12.1667);
     expect(result.shifts[0]?.lateMinutes).toBe(0);
     expect(result.shifts[0]?.earlyLeaveMinutes).toBe(0);
     expect(result.reviewPunchIds).toEqual(['outside']);
-    expect(result.usedPunchIds).toEqual(['in-first', 'out-last']);
+    expect(result.usedPunchIds).toEqual(['in-first', 'out-first']);
   });
 
   it('truncates seconds when calculating lateness', () => {
@@ -39,6 +39,109 @@ describe('punch matching', () => {
       [punch('in', '2026-11-09 10:00:59'), punch('out', '2026-11-09 22:00:00')],
     );
     expect(result.shifts[0]?.lateMinutes).toBe(0);
+  });
+
+  it('keeps the first biometric scan and reports scans within 300 seconds as duplicates', () => {
+    const result = matchPunches(
+      [instanceFor()],
+      [
+        punch('scan-1', '2026-11-09 22:10:36'),
+        punch('scan-2', '2026-11-09 22:10:41'),
+        punch('scan-3', '2026-11-09 22:10:48'),
+        punch('scan-4', '2026-11-09 22:10:54'),
+        punch('scan-5', '2026-11-09 22:10:59'),
+      ],
+    );
+    expect(result.keptPunchIds).toEqual(['scan-1']);
+    expect(result.duplicatePunchIds).toEqual(['scan-2', 'scan-3', 'scan-4', 'scan-5']);
+  });
+
+  it('debounces repeated IN scans and applies per-template lateness grace', () => {
+    const template = { ...instanceFor().template, lateGraceMin: 20 };
+    const scans = [
+      punch('in', '2026-11-09 09:55:36'),
+      punch('repeat-1', '2026-11-09 09:55:44'),
+      punch('repeat-2', '2026-11-09 09:55:56'),
+      punch('out', '2026-11-09 22:00:00'),
+    ];
+    const result = matchPunches([instanceFor('2026-11-09', template)], scans);
+    expect(result.shifts[0]?.punchIn?.local).toBe('2026-11-09 09:55:36');
+    expect(result.shifts[0]?.lateMinutes).toBe(0);
+    expect(result.duplicatePunchIds).toEqual(['repeat-1', 'repeat-2']);
+
+    const atGrace = matchPunches(
+      [instanceFor('2026-11-09', template)],
+      [punch('grace', '2026-11-09 10:20:59')],
+    );
+    const insideGrace = matchPunches(
+      [instanceFor('2026-11-09', template)],
+      [punch('inside-grace', '2026-11-09 10:15:00')],
+    );
+    const afterGrace = matchPunches(
+      [instanceFor('2026-11-09', template)],
+      [punch('late', '2026-11-09 10:21:00')],
+    );
+    expect(atGrace.shifts[0]?.lateMinutes).toBe(0);
+    expect(insideGrace.shifts[0]?.lateMinutes).toBe(0);
+    expect(afterGrace.shifts[0]?.lateMinutes).toBe(21);
+  });
+
+  it('calculates overnight overtime from the shift start date', () => {
+    const evening = {
+      ...instanceFor().template,
+      id: 'evening-v2',
+      startMin: 780,
+      endMin: 1500,
+      inFromMin: 760,
+      inToMin: 840,
+      outFromMin: 1490,
+      outToMin: null,
+      otCapMin: 480,
+    };
+    const first = matchPunches(
+      [instanceFor('2026-11-09', evening)],
+      [punch('in-a', '2026-11-09 13:01:54'), punch('out-a', '2026-11-10 02:11:38')],
+    );
+    const second = matchPunches(
+      [instanceFor('2026-11-09', evening)],
+      [punch('in-b', '2026-11-09 13:04:14'), punch('out-b', '2026-11-10 01:49:32')],
+    );
+    expect(first.shifts[0]?.overtimeMinutes).toBe(71);
+    expect(first.shifts[0]?.instance.date).toBe('2026-11-09');
+    expect(second.shifts[0]?.overtimeMinutes).toBe(49);
+  });
+
+  it('accepts early checkout candidates and flags a stay under 180 minutes', () => {
+    const early = matchPunches(
+      [instanceFor()],
+      [punch('in', '2026-11-09 10:00:00'), punch('out', '2026-11-09 21:52:00')],
+    );
+    expect(early.shifts[0]?.punchOut?.rawPunchId).toBe('out');
+    expect(early.shifts[0]?.earlyLeaveMinutes).toBe(8);
+
+    const short = matchPunches(
+      [instanceFor()],
+      [punch('in-short', '2026-11-09 10:00:00'), punch('out-short', '2026-11-09 10:40:00')],
+    );
+    expect(short.shifts[0]?.punchOut?.rawPunchId).toBe('out-short');
+    expect(short.shifts[0]?.reviewFlags).toContain('SHORT_STAY');
+  });
+
+  it('does not let an open-ended OUT zone steal the next shift IN', () => {
+    const openEnded = {
+      ...instanceFor().template,
+      outToMin: null,
+      otCapMin: 720,
+    };
+    const instances = [instanceFor('2026-11-09', openEnded), instanceFor('2026-11-10', openEnded)];
+    const result = matchPunches(instances, [
+      punch('day-1-in', '2026-11-09 10:00:00'),
+      punch('day-1-out', '2026-11-09 22:00:00'),
+      punch('day-2-in', '2026-11-10 09:50:00'),
+      punch('day-2-out', '2026-11-10 22:00:00'),
+    ]);
+    expect(result.shifts[0]?.punchOut?.rawPunchId).toBe('day-1-out');
+    expect(result.shifts[1]?.punchIn?.rawPunchId).toBe('day-2-in');
   });
 
   it('applies manual corrections without mutating raw punches', () => {

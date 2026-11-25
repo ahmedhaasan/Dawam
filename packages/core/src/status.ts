@@ -14,6 +14,7 @@ export interface StatusInput {
   coverage: readonly ImportCoverageInterval[];
   nowLocal: string;
   hasOutsideWindowPunches?: boolean;
+  hasUnmatchedDayPunch?: boolean;
 }
 
 export interface StatusError {
@@ -65,20 +66,30 @@ export const computeAttendanceStatus = (
   if (!now.ok) {
     return { ok: false, error: { code: 'INVALID_NOW', value: input.nowLocal } };
   }
+
+  // An accepted pair is conclusive. Waiting until the maximum OUT-zone end
+  // hid real early checkouts behind NOT_CLOSED even though both punches had
+  // already been matched.
+  const complete = Boolean(input.matched.punchIn && input.matched.punchOut);
+  if (complete) {
+    const early = input.matched.punchOut!.epochMs < input.matched.instance.window.outFrom.epochMs;
+    return { ok: true, value: { ...base, status: early ? 'EARLY_LEAVE' : 'PRESENT' } };
+  }
   if (now.value.epochMs < input.matched.instance.window.outTo.epochMs) {
     return { ok: true, value: { ...base, status: 'NOT_CLOSED' } };
   }
 
-  const complete = Boolean(input.matched.punchIn && input.matched.punchOut);
   if (!isShiftCovered(input.matched.instance, input.coverage)) {
     return {
       ok: true,
-      value: { ...base, status: complete ? 'PRESENT' : 'PENDING_IMPORT' },
+      value: { ...base, status: 'PENDING_IMPORT' },
     };
   }
-  if (complete) return { ok: true, value: { ...base, status: 'PRESENT' } };
   if (input.matched.punchIn) {
     return { ok: true, value: { ...base, status: 'MISSING_OUT' } };
+  }
+  if (input.hasUnmatchedDayPunch) {
+    return { ok: true, value: { ...base, status: 'REVIEW' } };
   }
   if (input.matched.punchOut) {
     return { ok: true, value: { ...base, status: 'MISSING_IN' } };

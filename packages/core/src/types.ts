@@ -13,7 +13,11 @@ export interface ShiftTemplate {
   inFromMin: number;
   inToMin: number;
   outFromMin: number;
-  outToMin: number;
+  /** null keeps checkout open until the next IN window or the overtime cap. */
+  outToMin: number | null;
+  lateGraceMin?: number;
+  checkoutOpenBeforeEndMin?: number;
+  otCapMin?: number;
 }
 
 export interface ShiftAssignment {
@@ -130,7 +134,7 @@ export interface MatchedPunch {
   flags: readonly DstFlag[];
 }
 
-export type MatchReviewFlag = 'OUTSIDE_WINDOW' | 'OUT_BEFORE_IN' | DstFlag;
+export type MatchReviewFlag = 'OUTSIDE_WINDOW' | 'OUT_BEFORE_IN' | 'SHORT_STAY' | DstFlag;
 
 export interface MatchedShift {
   instance: ShiftInstance;
@@ -139,6 +143,7 @@ export interface MatchedShift {
   hours: number | null;
   lateMinutes: number | null;
   earlyLeaveMinutes: number | null;
+  overtimeMinutes: number | null;
   reviewFlags: readonly MatchReviewFlag[];
 }
 
@@ -147,6 +152,8 @@ export interface MatchPunchesResult {
   usedPunchIds: readonly string[];
   reviewPunchIds: readonly string[];
   invalidPunchIds: readonly string[];
+  keptPunchIds: readonly string[];
+  duplicatePunchIds: readonly string[];
 }
 
 export interface ImportCoverageInterval {
@@ -160,6 +167,7 @@ export type AttendanceStatus =
   | 'LEAVE'
   | 'PERMISSION'
   | 'PRESENT'
+  | 'EARLY_LEAVE'
   | 'MISSING_IN'
   | 'MISSING_OUT'
   | 'ABSENT'
@@ -178,7 +186,15 @@ export interface AttendanceResult {
 }
 
 export interface MonthSummary {
+  totalWorkedMinutes: number;
   totalLateMinutes: number;
+  totalOvertimeMinutes: number;
+  overtimeDates: readonly {
+    date: LocalDate;
+    scheduledEnd: LocalDateTime;
+    actualOut: LocalDateTime;
+    minutes: number;
+  }[];
   statusCounts: Readonly<Record<AttendanceStatus, number>>;
   missingPunchDates: readonly LocalDate[];
   reviewDates: readonly LocalDate[];
@@ -190,8 +206,8 @@ export interface PayrollDayInput {
   date: LocalDate;
   status: AttendanceStatus;
   lateMinutes: number;
-  /** Optional administrator choice for this date when using a fixed hourly amount. */
-  lateRounding?: 'exact' | 'hour_up';
+  /** Explicit administrator decision for this date. `automatic` preserves legacy policy behavior. */
+  deductionTreatment?: 'automatic' | 'none' | 'exact' | 'hour_up' | 'full_day';
   /** Required when the policy uses the scheduled shift as its hourly basis. */
   scheduledMinutes?: number;
 }
@@ -241,7 +257,8 @@ export interface PayrollDateResult {
   actualLateMinutes: number;
   billableLateMinutes: number;
   billableUnits: number;
-  rule: PayrollPolicy['id'];
+  treatment: 'automatic' | 'none' | 'exact' | 'hour_up' | 'full_day';
+  rule: PayrollPolicy['id'] | 'manual_full_day';
   amountBeforeCapMinor: number;
   amountMinor: number;
   capApplied: boolean;
@@ -253,10 +270,99 @@ export interface PayrollResult {
   totalLateMinutes: number;
   latenessDeductionMinor: number;
   absenceDays: number;
+  chargedAbsenceDays: number;
   absenceDeductionMinor: number;
   otherApprovedItemsMinor: number;
   totalDeductionsMinor: number;
   netPayMinor: number;
   warnings: readonly string[];
   dates: readonly PayrollDateResult[];
+}
+
+export type PayrollV2LateMethod =
+  'none' | 'minutes' | 'hours' | 'full_day_any' | 'full_day_threshold' | 'custom_amount';
+
+export type PayrollV2OvertimeMethod = 'none' | 'fixed_per_hour' | 'extra_days' | 'custom_amount';
+
+export interface PayrollV2LateRule {
+  method: PayrollV2LateMethod;
+  hourlyAmountMinor: number;
+  hourThresholdMinutes: number;
+  shortLatenessAmountMinor: number;
+  fullDayThresholdMinutes: number;
+  graceMinutes: number;
+  /** null removes the cap; otherwise defaults to the rounded daily wage. */
+  capPerDayMinor: number | null;
+}
+
+export interface PayrollV2OvertimeRule {
+  method: PayrollV2OvertimeMethod;
+  amountPerHourMinor: number;
+  minimumMinutes: number;
+  rounding: 'exact' | 'down_30' | 'down_60';
+  hoursPerExtraDay: number;
+}
+
+export interface PayrollV2DayInput {
+  date: LocalDate;
+  status: AttendanceStatus;
+  lateMinutes: number;
+  overtimeMinutes: number;
+  scheduledMinutes?: number;
+  included?: boolean;
+  lateOverride?: {
+    method: PayrollV2LateMethod;
+    customAmountMinor?: number;
+    reason?: string;
+  };
+  overtimeOverride?: {
+    method: PayrollV2OvertimeMethod;
+    customAmountMinor?: number;
+    reason?: string;
+  };
+  edited?: boolean;
+  editReason?: string | null;
+}
+
+export interface PayrollV2Input {
+  monthlySalaryMinor: number;
+  wageBasisDays: number;
+  days: readonly PayrollV2DayInput[];
+  lateRule: PayrollV2LateRule;
+  overtimeRule: PayrollV2OvertimeRule;
+  absenceMultiplier: { numerator: number; denominator: number };
+  otherApprovedDeductionsMinor?: number;
+}
+
+export interface PayrollV2DateResult {
+  date: LocalDate;
+  status: AttendanceStatus;
+  lateMinutes: number;
+  overtimeMinutes: number;
+  countedOvertimeMinutes: number;
+  included: boolean;
+  method: PayrollV2LateMethod;
+  overtimeMethod: PayrollV2OvertimeMethod;
+  deductionMinor: number;
+  bonusMinor: number;
+  absenceMinor: number;
+  edited: boolean;
+  reason: string | null;
+}
+
+export interface PayrollV2Result {
+  monthlySalaryMinor: number;
+  dailyWageMinor: number;
+  presentDays: number;
+  absenceDays: number;
+  totalLateMinutes: number;
+  totalOvertimeMinutes: number;
+  countedOvertimeMinutes: number;
+  latenessDeductionMinor: number;
+  absenceDeductionMinor: number;
+  overtimeBonusMinor: number;
+  otherApprovedDeductionsMinor: number;
+  finalSalaryMinor: number;
+  warnings: readonly string[];
+  dates: readonly PayrollV2DateResult[];
 }

@@ -34,8 +34,13 @@ export interface AttendanceDayView {
   hours: number | null;
   lateMinutes: number | null;
   earlyLeaveMinutes: number | null;
+  overtimeMinutes: number | null;
+  scheduledStart?: string;
+  scheduledEnd?: string;
   scheduledMinutes: number | null;
   flags: readonly string[];
+  corrected: boolean;
+  correctionReasons: readonly string[];
 }
 
 export interface AttendanceMonthView {
@@ -43,7 +48,16 @@ export interface AttendanceMonthView {
   month: string;
   days: readonly AttendanceDayView[];
   summary: {
+    totalWorkedMinutes: number;
     totalLateMinutes: number;
+    totalOvertimeMinutes: number;
+    overtimeDates: readonly {
+      date: string;
+      scheduledEnd: string;
+      actualOut: string;
+      minutes: number;
+    }[];
+    ignoredRepeatedPunches: readonly { id: string; punchedAtLocal: string }[];
     statusCounts: Readonly<Record<AttendanceStatus, number>>;
     missingPunchDates: readonly string[];
     reviewDates: readonly string[];
@@ -100,6 +114,9 @@ export class AttendanceService {
         inToMin: item.inToMin,
         outFromMin: item.outFromMin,
         outToMin: item.outToMin,
+        lateGraceMin: item.lateGraceMin,
+        checkoutOpenBeforeEndMin: item.checkoutOpenBeforeEndMin,
+        otCapMin: item.otCapMin,
       })),
       assignments: this.workforce.listAssignments().map((item) => ({
         employeeId: String(item.employeeId),
@@ -164,8 +181,21 @@ export class AttendanceService {
     const results = [];
     for (const schedule of schedules) {
       const dayMatch = matched.shifts.find((item) => item.instance.date === schedule.date);
+      const window = dayMatch?.instance.window;
+      const hasUnmatchedDayPunch =
+        window !== undefined &&
+        punches.some((punch) => {
+          if (matched.usedPunchIds.includes(punch.id)) return false;
+          const parsed = parseLocalDateTime(punch.punchedAtLocal);
+          return (
+            parsed.ok &&
+            parsed.value.epochMs > window.inTo.epochMs &&
+            parsed.value.epochMs < window.outFrom.epochMs
+          );
+        });
       const status = computeAttendanceStatus({
         schedule,
+        hasUnmatchedDayPunch,
         ...(dayMatch ? { matched: dayMatch } : {}),
         coverage,
         nowLocal,
@@ -173,7 +203,13 @@ export class AttendanceService {
       if (!status.ok) return { ok: false, error: failure('STATUS', [status.error.code]) };
       results.push(status.value);
     }
-    const summary = summarizeMonth(results);
+    const summary = {
+      ...summarizeMonth(results),
+      ignoredRepeatedPunches: matched.duplicatePunchIds.flatMap((id) => {
+        const punch = punches.find((item) => item.id === id);
+        return punch ? [{ id, punchedAtLocal: punch.punchedAtLocal }] : [];
+      }),
+    };
     return {
       ok: true,
       value: {
@@ -185,6 +221,7 @@ export class AttendanceService {
         month,
         days: results.map((day) => {
           const schedule = schedules.find((item) => item.date === day.date)!;
+          const dayCorrections = corrections.filter((item) => item.shiftDate === day.date);
           return {
             date: day.date,
             scheduleKind: schedule.kind,
@@ -195,10 +232,19 @@ export class AttendanceService {
             hours: day.matched?.hours ?? null,
             lateMinutes: day.matched?.lateMinutes ?? null,
             earlyLeaveMinutes: day.matched?.earlyLeaveMinutes ?? null,
+            overtimeMinutes: day.matched?.overtimeMinutes ?? null,
+            ...(day.matched
+              ? {
+                  scheduledStart: day.matched.instance.window.start.raw,
+                  scheduledEnd: day.matched.instance.window.end.raw,
+                }
+              : {}),
             scheduledMinutes: schedule.template
               ? schedule.template.endMin - schedule.template.startMin
               : null,
             flags: day.flags,
+            corrected: dayCorrections.length > 0,
+            correctionReasons: [...new Set(dayCorrections.map((item) => item.reason))],
           };
         }),
         summary,

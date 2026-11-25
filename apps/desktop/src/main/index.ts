@@ -20,7 +20,7 @@ const createWindow = (): void => {
   const window = new BrowserWindow({
     width: 1366,
     height: 768,
-    minWidth: 1024,
+    minWidth: 860,
     minHeight: 640,
     show: false,
     backgroundColor: '#f4f7fb',
@@ -63,7 +63,7 @@ void app
     const auth = new AuthService(database, {
       profilePhotosDirectory: join(dataDirectory, 'user-photos'),
     });
-    const settings = new SettingsService(database, auth);
+    const settings = new SettingsService(database, auth, join(dataDirectory, 'photos'));
     const audit = new AuditRepository(database);
     const workforce = new WorkforceService(database, auth, join(dataDirectory, 'photos'));
     const imports = new ImportService(database, auth);

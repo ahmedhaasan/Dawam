@@ -156,4 +156,34 @@ export class AuditRepository {
   verify(): AuditVerification {
     return verifyAuditRows(this.list());
   }
+
+  reset(input: { actorUserId: number | null; reason: string }): {
+    deletedCount: number;
+    marker: AuditRow;
+  } {
+    return this.database.transaction(() => {
+      const row = this.database.connection
+        .prepare('SELECT COUNT(*) AS count FROM audit_log')
+        .get() as { count: number };
+      const deletedCount = Number(row.count);
+      this.database.connection.exec('DROP TRIGGER audit_log_no_delete');
+      try {
+        this.database.connection.exec('DELETE FROM audit_log');
+      } finally {
+        this.database.connection.exec(`CREATE TRIGGER audit_log_no_delete
+          BEFORE DELETE ON audit_log
+          BEGIN
+            SELECT RAISE(ABORT, 'audit_log is append-only');
+          END;`);
+      }
+      const marker = this.append({
+        actorUserId: input.actorUserId,
+        action: 'audit.history_reset',
+        entity: 'audit_log',
+        after: { deletedCount },
+        reason: input.reason,
+      });
+      return { deletedCount, marker };
+    });
+  }
 }

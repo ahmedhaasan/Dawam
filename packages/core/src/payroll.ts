@@ -4,6 +4,9 @@ import type {
   PayrollInput,
   PayrollOptions,
   PayrollResult,
+  PayrollV2Input,
+  PayrollV2LateMethod,
+  PayrollV2Result,
   Result,
 } from './types.js';
 
@@ -21,7 +24,12 @@ export type PayrollErrorCode =
   | 'INVALID_THRESHOLD'
   | 'INVALID_FIXED_HOURLY_AMOUNT'
   | 'INVALID_TIER'
-  | 'OVERLAPPING_TIERS';
+  | 'OVERLAPPING_TIERS'
+  | 'INVALID_OVERTIME_MINUTES'
+  | 'INVALID_OVERTIME_RULE'
+  | 'INVALID_LATE_RULE'
+  | 'INVALID_CUSTOM_AMOUNT'
+  | 'REASON_REQUIRED';
 
 export interface PayrollError {
   code: PayrollErrorCode;
@@ -279,25 +287,45 @@ export const calculatePayroll = (
   if (!validation.ok) return validation;
 
   const dailyWageMinor = roundHalfUp(input.monthlySalaryMinor, input.wageBasisDays);
+  const absenceMultiplier = input.options?.absenceMultiplier ?? { numerator: 1, denominator: 1 };
+  const automaticAbsenceMinor = roundHalfUp(
+    safeProduct(dailyWageMinor, absenceMultiplier.numerator),
+    absenceMultiplier.denominator,
+  );
   const cap =
     input.options?.capPerDateMinor === undefined ? dailyWageMinor : input.options.capPerDateMinor;
   const dates: PayrollDateResult[] = input.days.map((day) => {
-    const billableLateMinutes = applyGrace(day.lateMinutes, input.options);
-    const calculated = calculateDateAmount(
-      input,
-      billableLateMinutes,
-      day.scheduledMinutes,
-      day.lateRounding,
-    );
+    const treatment = day.deductionTreatment ?? 'automatic';
+    const isAbsence = day.status === 'ABSENT';
+    const billableLateMinutes =
+      treatment === 'none' || treatment === 'full_day' || isAbsence
+        ? 0
+        : applyGrace(day.lateMinutes, input.options);
+    const calculated =
+      treatment === 'full_day' || (isAbsence && treatment === 'automatic')
+        ? {
+            units: 1,
+            amountMinor:
+              isAbsence && treatment === 'automatic' ? automaticAbsenceMinor : dailyWageMinor,
+          }
+        : treatment === 'none' || isAbsence
+          ? { units: 0, amountMinor: 0 }
+          : calculateDateAmount(
+              input,
+              billableLateMinutes,
+              day.scheduledMinutes,
+              treatment === 'hour_up' ? 'hour_up' : 'exact',
+            );
     const amountMinor =
-      cap === null ? calculated.amountMinor : Math.min(cap, calculated.amountMinor);
+      isAbsence || cap === null ? calculated.amountMinor : Math.min(cap, calculated.amountMinor);
     return {
       date: day.date,
       status: day.status,
       actualLateMinutes: day.lateMinutes,
       billableLateMinutes,
       billableUnits: calculated.units,
-      rule: input.policy.id,
+      treatment,
+      rule: treatment === 'full_day' ? 'manual_full_day' : input.policy.id,
       amountBeforeCapMinor: calculated.amountMinor,
       amountMinor,
       capApplied: amountMinor < calculated.amountMinor,
@@ -305,14 +333,28 @@ export const calculatePayroll = (
   });
 
   const totalLateMinutes = input.days.reduce((total, day) => total + day.lateMinutes, 0);
-  const latenessDeductionMinor = dates.reduce((total, day) => total + day.amountMinor, 0);
-  const absenceDays = input.days.filter((day) => day.status === 'ABSENT').length;
-  const multiplier = input.options?.absenceMultiplier ?? { numerator: 1, denominator: 1 };
-  const absencePerDateMinor = roundHalfUp(
-    safeProduct(dailyWageMinor, multiplier.numerator),
-    multiplier.denominator,
+  const latenessDeductionMinor = dates.reduce(
+    (total, day) =>
+      total +
+      (input.days.find((inputDay) => inputDay.date === day.date)?.status === 'ABSENT'
+        ? 0
+        : day.amountMinor),
+    0,
   );
-  const absenceDeductionMinor = safeProduct(absencePerDateMinor, absenceDays);
+  const absenceDays = input.days.filter((day) => day.status === 'ABSENT').length;
+  const chargedAbsenceDays = dates.filter(
+    (day) =>
+      input.days.find((inputDay) => inputDay.date === day.date)?.status === 'ABSENT' &&
+      day.amountMinor > 0,
+  ).length;
+  const absenceDeductionMinor = dates.reduce(
+    (total, day) =>
+      total +
+      (input.days.find((inputDay) => inputDay.date === day.date)?.status === 'ABSENT'
+        ? day.amountMinor
+        : 0),
+    0,
+  );
   const otherApprovedItemsMinor = input.options?.otherApprovedItemsMinor ?? 0;
   const totalDeductionsMinor =
     latenessDeductionMinor + absenceDeductionMinor + otherApprovedItemsMinor;
@@ -326,12 +368,198 @@ export const calculatePayroll = (
       totalLateMinutes,
       latenessDeductionMinor,
       absenceDays,
+      chargedAbsenceDays,
       absenceDeductionMinor,
       otherApprovedItemsMinor,
       totalDeductionsMinor,
       netPayMinor,
       warnings: netPayMinor < 0 ? ['NEGATIVE_NET_PAY'] : [],
       dates,
+    },
+  };
+};
+
+const v2LateAmount = (
+  input: PayrollV2Input,
+  method: PayrollV2LateMethod,
+  lateMinutes: number,
+  customAmountMinor: number | undefined,
+  dailyWageMinor: number,
+): number => {
+  const rule = input.lateRule;
+  if (lateMinutes <= rule.graceMinutes || method === 'none') return 0;
+  let amount = 0;
+  switch (method) {
+    case 'minutes':
+      amount = roundHalfUp(safeProduct(rule.hourlyAmountMinor, lateMinutes), 60);
+      break;
+    case 'hours':
+      amount =
+        lateMinutes < rule.hourThresholdMinutes
+          ? rule.shortLatenessAmountMinor
+          : safeProduct(Math.ceil(lateMinutes / 60), rule.hourlyAmountMinor);
+      break;
+    case 'full_day_any':
+      amount = dailyWageMinor;
+      break;
+    case 'full_day_threshold':
+      amount = lateMinutes >= rule.fullDayThresholdMinutes ? dailyWageMinor : 0;
+      break;
+    case 'custom_amount':
+      amount = customAmountMinor ?? 0;
+      break;
+  }
+  return rule.capPerDayMinor === null ? amount : Math.min(amount, rule.capPerDayMinor);
+};
+
+const countedOvertime = (
+  minutes: number,
+  rounding: PayrollV2Input['overtimeRule']['rounding'],
+): number => {
+  if (rounding === 'down_30') return Math.floor(minutes / 30) * 30;
+  if (rounding === 'down_60') return Math.floor(minutes / 60) * 60;
+  return minutes;
+};
+
+export const calculatePayrollV2 = (
+  input: PayrollV2Input,
+): Result<PayrollV2Result, readonly PayrollError[]> => {
+  const errors: PayrollError[] = [];
+  if (!isNonNegativeInteger(input.monthlySalaryMinor))
+    errors.push({ code: 'INVALID_MONTHLY_SALARY' });
+  if (!isPositiveInteger(input.wageBasisDays)) errors.push({ code: 'INVALID_WAGE_BASIS' });
+  const lateNumbers = [
+    input.lateRule.hourlyAmountMinor,
+    input.lateRule.hourThresholdMinutes,
+    input.lateRule.shortLatenessAmountMinor,
+    input.lateRule.fullDayThresholdMinutes,
+    input.lateRule.graceMinutes,
+  ];
+  if (
+    lateNumbers.some((value) => !isNonNegativeInteger(value)) ||
+    (input.lateRule.capPerDayMinor !== null && !isNonNegativeInteger(input.lateRule.capPerDayMinor))
+  )
+    errors.push({ code: 'INVALID_LATE_RULE' });
+  if (
+    !isNonNegativeInteger(input.overtimeRule.amountPerHourMinor) ||
+    !isNonNegativeInteger(input.overtimeRule.minimumMinutes) ||
+    !isPositiveInteger(input.overtimeRule.hoursPerExtraDay)
+  )
+    errors.push({ code: 'INVALID_OVERTIME_RULE' });
+  if (
+    !isNonNegativeInteger(input.absenceMultiplier.numerator) ||
+    !isPositiveInteger(input.absenceMultiplier.denominator)
+  )
+    errors.push({ code: 'INVALID_ABSENCE_MULTIPLIER' });
+  const dates = new Set<string>();
+  for (const day of input.days) {
+    if (dates.has(day.date)) errors.push({ code: 'DUPLICATE_DATE', date: day.date });
+    dates.add(day.date);
+    if (!isNonNegativeInteger(day.lateMinutes))
+      errors.push({ code: 'INVALID_LATE_MINUTES', date: day.date });
+    if (!isNonNegativeInteger(day.overtimeMinutes))
+      errors.push({ code: 'INVALID_OVERTIME_MINUTES', date: day.date });
+    if (day.lateOverride?.method === 'custom_amount') {
+      if (!isNonNegativeInteger(day.lateOverride.customAmountMinor ?? -1))
+        errors.push({ code: 'INVALID_CUSTOM_AMOUNT', date: day.date });
+      if (!day.lateOverride.reason?.trim())
+        errors.push({ code: 'REASON_REQUIRED', date: day.date });
+    }
+    if (day.overtimeOverride?.method === 'custom_amount') {
+      if (!isNonNegativeInteger(day.overtimeOverride.customAmountMinor ?? -1))
+        errors.push({ code: 'INVALID_CUSTOM_AMOUNT', date: day.date });
+      if (!day.overtimeOverride.reason?.trim())
+        errors.push({ code: 'REASON_REQUIRED', date: day.date });
+    }
+  }
+  if (errors.length) return { ok: false, error: errors };
+
+  const dailyWageMinor = roundHalfUp(input.monthlySalaryMinor, input.wageBasisDays);
+  const datesResult = input.days.map((day) => {
+    const inert = day.status === 'REST' || day.status === 'PENDING_IMPORT';
+    const included = (day.included ?? true) && !inert;
+    const isAbsent = day.status === 'ABSENT';
+    const method = day.lateOverride?.method ?? input.lateRule.method;
+    const overtimeMethod = day.overtimeOverride?.method ?? input.overtimeRule.method;
+    const deductionMinor =
+      included && !isAbsent
+        ? v2LateAmount(
+            input,
+            method,
+            day.lateMinutes,
+            day.lateOverride?.customAmountMinor,
+            dailyWageMinor,
+          )
+        : 0;
+    const absenceMinor =
+      included && isAbsent
+        ? roundHalfUp(
+            safeProduct(dailyWageMinor, input.absenceMultiplier.numerator),
+            input.absenceMultiplier.denominator,
+          )
+        : 0;
+    const overtimeEligible = day.overtimeMinutes >= input.overtimeRule.minimumMinutes;
+    const counted =
+      included && !isAbsent && overtimeEligible && overtimeMethod !== 'none'
+        ? countedOvertime(day.overtimeMinutes, input.overtimeRule.rounding)
+        : 0;
+    const bonusMinor =
+      overtimeMethod === 'fixed_per_hour'
+        ? roundHalfUp(safeProduct(input.overtimeRule.amountPerHourMinor, counted), 60)
+        : overtimeMethod === 'extra_days'
+          ? roundHalfUp(
+              safeProduct(dailyWageMinor, counted),
+              safeProduct(input.overtimeRule.hoursPerExtraDay, 60),
+            )
+          : overtimeMethod === 'custom_amount'
+            ? (day.overtimeOverride?.customAmountMinor ?? 0)
+            : 0;
+    return {
+      date: day.date,
+      status: day.status,
+      lateMinutes: day.lateMinutes,
+      overtimeMinutes: day.overtimeMinutes,
+      countedOvertimeMinutes: counted,
+      included,
+      method,
+      overtimeMethod,
+      deductionMinor,
+      bonusMinor,
+      absenceMinor,
+      edited: Boolean(day.edited || day.lateOverride || day.overtimeOverride),
+      reason: day.lateOverride?.reason ?? day.overtimeOverride?.reason ?? day.editReason ?? null,
+    };
+  });
+  const latenessDeductionMinor = datesResult.reduce((sum, day) => sum + day.deductionMinor, 0);
+  const absenceDeductionMinor = datesResult.reduce((sum, day) => sum + day.absenceMinor, 0);
+  const overtimeBonusMinor = datesResult.reduce((sum, day) => sum + day.bonusMinor, 0);
+  const otherApprovedDeductionsMinor = input.otherApprovedDeductionsMinor ?? 0;
+  const finalSalaryMinor =
+    input.monthlySalaryMinor -
+    latenessDeductionMinor -
+    absenceDeductionMinor -
+    otherApprovedDeductionsMinor +
+    overtimeBonusMinor;
+  return {
+    ok: true,
+    value: {
+      monthlySalaryMinor: input.monthlySalaryMinor,
+      dailyWageMinor,
+      // EARLY_LEAVE is a complete worked day; early-leave minutes are shown, not charged.
+      presentDays: input.days.filter(
+        (day) => day.status === 'PRESENT' || day.status === 'EARLY_LEAVE',
+      ).length,
+      absenceDays: input.days.filter((day) => day.status === 'ABSENT').length,
+      totalLateMinutes: input.days.reduce((sum, day) => sum + day.lateMinutes, 0),
+      totalOvertimeMinutes: input.days.reduce((sum, day) => sum + day.overtimeMinutes, 0),
+      countedOvertimeMinutes: datesResult.reduce((sum, day) => sum + day.countedOvertimeMinutes, 0),
+      latenessDeductionMinor,
+      absenceDeductionMinor,
+      overtimeBonusMinor,
+      otherApprovedDeductionsMinor,
+      finalSalaryMinor,
+      warnings: finalSalaryMinor < 0 ? ['NEGATIVE_NET_PAY'] : [],
+      dates: datesResult,
     },
   };
 };

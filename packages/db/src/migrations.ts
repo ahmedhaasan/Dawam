@@ -3,11 +3,14 @@ import workforceIndexesSql from '../migrations/0002_workforce_indexes.sql?raw';
 import importIdempotencySql from '../migrations/0003_import_idempotency.sql?raw';
 import payrollIntegritySql from '../migrations/0004_payroll_integrity.sql?raw';
 import userProfilesSql from '../migrations/0005_user_profiles.sql?raw';
+import ignoredDeviceIdsSql from '../migrations/0006_ignored_device_ids.sql?raw';
+import attendanceRulesV2Sql from '../migrations/0007_attendance_rules_v2.sql?raw';
 
 export interface Migration {
   version: number;
   name: string;
   sql: string;
+  foreignKeysOff?: boolean;
 }
 
 export const migrations: readonly Migration[] = [
@@ -16,4 +19,11 @@ export const migrations: readonly Migration[] = [
   { version: 3, name: '0003_import_idempotency', sql: importIdempotencySql },
   { version: 4, name: '0004_payroll_integrity', sql: payrollIntegritySql },
   { version: 5, name: '0005_user_profiles', sql: userProfilesSql },
+  { version: 6, name: '0006_ignored_device_ids', sql: ignoredDeviceIdsSql },
+  {
+    version: 7,
+    name: '0007_attendance_rules_v2',
+    sql: attendanceRulesV2Sql,
+    foreignKeysOff: true,
+  },
 ];

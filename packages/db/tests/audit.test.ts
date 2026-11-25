@@ -50,4 +50,19 @@ describe('tamper-evident audit log', () => {
     );
     database.close();
   });
+
+  it('starts a new valid chain only through the explicit reset operation', () => {
+    const database = new DawamDatabase();
+    const audit = new AuditRepository(database, fixedClock);
+    audit.append({ actorUserId: null, action: 'one', entity: 'test' });
+    audit.append({ actorUserId: null, action: 'two', entity: 'test' });
+    expect(audit.reset({ actorUserId: null, reason: 'Synthetic reset' })).toMatchObject({
+      deletedCount: 2,
+      marker: { action: 'audit.history_reset', prevHash: '' },
+    });
+    expect(audit.list()).toHaveLength(1);
+    expect(audit.verify()).toEqual({ valid: true });
+    expect(() => database.connection.exec('DELETE FROM audit_log')).toThrow(/append-only/);
+    database.close();
+  });
 });

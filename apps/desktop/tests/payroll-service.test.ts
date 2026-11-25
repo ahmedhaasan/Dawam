@@ -59,6 +59,60 @@ const setup = async () => {
 };
 
 describe('payroll service', () => {
+  it('calculates payroll v2 overtime, per-date overrides, exclusions, and salary override', async () => {
+    const { payroll, employee } = await setup();
+    const policy = payroll.createPolicy({
+      name: 'Payroll v2 synthetic',
+      config: {
+        version: 2,
+        lateRule: {
+          method: 'hours',
+          hourlyAmountMinor: 10_000,
+          hourThresholdMinutes: 30,
+          shortLatenessAmountMinor: 2_500,
+          fullDayThresholdMinutes: 60,
+          graceMinutes: 0,
+          capPerDayMinor: 20_000,
+        },
+        overtimeRule: {
+          method: 'fixed_per_hour',
+          amountPerHourMinor: 6_000,
+          minimumMinutes: 15,
+          rounding: 'exact',
+          hoursPerExtraDay: 12,
+        },
+        absenceMultiplier: { numerator: 1, denominator: 1 },
+      },
+      reason: 'Synthetic payroll v2 policy',
+    });
+    if (!policy.ok) throw new Error(policy.error.code);
+    const preview = payroll.preview(
+      employee.id,
+      '2026-11',
+      policy.value.id,
+      {},
+      {
+        '2026-11-01': { lateMethod: 'minutes', reason: 'Use exact minutes' },
+        '2026-11-02': { included: false },
+      },
+      650_000,
+    );
+    if (!preview.ok) throw new Error(preview.error.code);
+    expect(preview.value.result).toMatchObject({
+      monthlySalaryMinor: 650_000,
+      totalLateMinutes: 30,
+      latenessDeductionMinor: 5_000,
+      absenceDeductionMinor: 0,
+      finalSalaryMinor: 645_000,
+    });
+    expect(preview.value.result.dates[0]).toMatchObject({
+      method: 'minutes',
+      edited: true,
+      reason: 'Use exact minutes',
+      deductionMinor: 5_000,
+    });
+  });
+
   it('requires an explicit policy and produces per-date preview totals', async () => {
     const { payroll, employee } = await setup();
     expect(payroll.listPolicies()).toEqual({ ok: true, value: [] });
@@ -75,7 +129,10 @@ describe('payroll service', () => {
       reason: 'Synthetic payroll policy',
     });
     if (!policy.ok) throw new Error(policy.error.code);
-    const preview = payroll.preview(employee.id, '2026-11', policy.value.id);
+    const preview = payroll.preview(employee.id, '2026-11', policy.value.id, {
+      '2026-11-01': 'exact',
+      '2026-11-02': 'full_day',
+    });
     if (!preview.ok) throw new Error(preview.error.code);
     expect(preview.value.result).toMatchObject({
       monthlySalaryMinor: 600_000,
@@ -89,6 +146,58 @@ describe('payroll service', () => {
       billableLateMinutes: 30,
       rule: 'hourly_proportional',
       amountMinor: 833,
+    });
+  });
+
+  it('supports separate audited custom deduction and bonus decisions', async () => {
+    const { payroll, employee } = await setup();
+    const policy = payroll.createPolicy({
+      name: 'Custom day decisions',
+      config: {
+        version: 2,
+        lateRule: {
+          method: 'none',
+          hourlyAmountMinor: 10_000,
+          hourThresholdMinutes: 30,
+          shortLatenessAmountMinor: 2_500,
+          fullDayThresholdMinutes: 60,
+          graceMinutes: 0,
+          capPerDayMinor: null,
+        },
+        overtimeRule: {
+          method: 'none',
+          amountPerHourMinor: 6_000,
+          minimumMinutes: 15,
+          rounding: 'exact',
+          hoursPerExtraDay: 12,
+        },
+        absenceMultiplier: { numerator: 1, denominator: 1 },
+      },
+      reason: 'Synthetic custom decisions policy',
+    });
+    if (!policy.ok) throw new Error(policy.error.code);
+    const preview = payroll.preview(
+      employee.id,
+      '2026-11',
+      policy.value.id,
+      {},
+      {
+        '2026-11-01': {
+          lateMethod: 'custom_amount',
+          lateCustomAmountMinor: 1_500,
+          lateReason: 'Documented deduction',
+          overtimeMethod: 'custom_amount',
+          overtimeCustomAmountMinor: 2_250,
+          overtimeReason: 'Documented bonus',
+        },
+      },
+    );
+    if (!preview.ok) throw new Error(preview.error.code);
+    expect(preview.value.result.dates[0]).toMatchObject({
+      deductionMinor: 1_500,
+      bonusMinor: 2_250,
+      method: 'custom_amount',
+      overtimeMethod: 'custom_amount',
     });
   });
 

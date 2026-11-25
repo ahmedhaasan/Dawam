@@ -30,10 +30,12 @@ const api: DawamDesktopApi = {
     setLanguage: (language) => invoke(IPC_CHANNELS.setLanguage, { language }),
     getIdleLockMinutes: () => invoke(IPC_CHANNELS.getIdleLockMinutes),
     setIdleLockMinutes: (minutes) => invoke(IPC_CHANNELS.setIdleLockMinutes, { minutes }),
+    resetAppData: (input) => invoke(IPC_CHANNELS.resetAppData, input),
   },
   audit: {
     verify: () => invoke(IPC_CHANNELS.verifyAudit),
     list: (input) => invoke(IPC_CHANNELS.listAudit, input),
+    reset: (input) => invoke(IPC_CHANNELS.resetAudit, input),
   },
   backup: {
     chooseFolder: () => invoke(IPC_CHANNELS.chooseBackupFolder),
@@ -46,6 +48,7 @@ const api: DawamDesktopApi = {
     commit: (input) => invoke(IPC_CHANNELS.commitAttendanceImport, input),
     listQuarantined: () => invoke(IPC_CHANNELS.listQuarantinedPunches),
     resolveQuarantined: (input) => invoke(IPC_CHANNELS.resolveQuarantinedPunch, input),
+    ignoreDeviceId: (input) => invoke(IPC_CHANNELS.ignoreQuarantinedDeviceId, input),
   },
   attendance: {
     month: (input) => invoke(IPC_CHANNELS.getAttendanceMonth, input),
@@ -67,6 +70,7 @@ const api: DawamDesktopApi = {
     createEmployee: (input) => invoke(IPC_CHANNELS.createEmployee, input),
     updateEmployee: (input) => invoke(IPC_CHANNELS.updateEmployee, input),
     deleteEmployee: (input) => invoke(IPC_CHANNELS.deleteEmployee, input),
+    employeePurgePreview: (input) => invoke(IPC_CHANNELS.employeePurgePreview, input),
     listTemplates: () => invoke(IPC_CHANNELS.listShiftTemplates),
     createTemplate: (input) => invoke(IPC_CHANNELS.createShiftTemplate, input),
     updateTemplate: (input) => invoke(IPC_CHANNELS.updateShiftTemplate, input),

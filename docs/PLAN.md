@@ -48,6 +48,11 @@ Gate: backup→wipe→restore round trip on Windows restores employees, photos, 
 Tasks: NSIS installer, upgrade test (v0.x→v0.y keeps data), clean-install test, Arabic/English visual QA, user manual (AR/EN, 2 pages), release checklist (TEST_PLAN §5).
 Gate: all release checks run on the target PC and recorded in IMPLEMENTATION.md.
 
+## M9a — Attendance rules v2
+
+Tasks: immutable scan debounce, per-template late grace, early checkout and short-stay review, open-ended/capped OUT zones, next-shift punch protection, overtime calculation and month totals, data-preserving schema upgrade, and bilingual attendance/template UI.
+Gate: documented attendance-v2 scenarios pass; no punch is used twice; month overtime totals equal daily totals; core line coverage remains at least 95%; existing databases upgrade without losing templates or assignments.
+
 ## Later (not v1)
 
 Direct device sync, multi-PC backend, XLSX payroll export for accountant, leave balances, notifications.

@@ -2,10 +2,12 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { AuditRepository, DawamDatabase } from '@dawam/db';
+import { AuditRepository, DawamDatabase, PayrollRepository } from '@dawam/db';
 import { afterEach, describe, expect, it } from 'vitest';
 
+import { AttendanceService } from '../src/main/services/attendance-service.js';
 import { AuthService } from '../src/main/services/auth-service.js';
+import { ImportService } from '../src/main/services/import-service.js';
 import { WorkforceService } from '../src/main/services/workforce-service.js';
 
 const databases: DawamDatabase[] = [];
@@ -92,25 +94,23 @@ describe('workforce service', () => {
     expect(new AuditRepository(database).verify()).toEqual({ valid: true });
   });
 
-  it('permanently deletes only inactive employees without schedules, punches, or payroll history', async () => {
+  it('permanently purges an employee and owned operational history after exact confirmation', async () => {
     const { database, service } = await setup();
     const unused = service.createEmployee(employee('Created by mistake', 'unused-1'));
     expect(unused.ok).toBe(true);
     if (!unused.ok) return;
-    expect(service.deleteEmployee(unused.value.id, 'Remove mistaken employee')).toMatchObject({
-      ok: false,
-      error: { code: 'EMPLOYEE_MUST_BE_INACTIVE' },
-    });
     expect(
-      service.updateEmployee(unused.value.id, {
-        ...employee('Created by mistake', 'unused-1'),
-        active: false,
-      }),
-    ).toMatchObject({ ok: true, value: { active: false } });
-    expect(service.deleteEmployee(unused.value.id, 'Remove mistaken employee')).toEqual({
-      ok: true,
-      value: true,
+      service.deleteEmployee(unused.value.id, 'Remove mistaken employee', 'wrong-id'),
+    ).toMatchObject({
+      ok: false,
+      error: { code: 'DELETE_CONFIRMATION_MISMATCH' },
     });
+    expect(service.deleteEmployee(unused.value.id, 'Remove mistaken employee', 'unused-1')).toEqual(
+      {
+        ok: true,
+        value: true,
+      },
+    );
     expect(service.listEmployees()).toMatchObject({ ok: true, value: [] });
 
     const scheduled = service.createEmployee(employee('Scheduled employee', 'scheduled-1'));
@@ -130,7 +130,9 @@ describe('workforce service', () => {
       ...employee('Scheduled employee', 'scheduled-1'),
       active: false,
     });
-    expect(service.deleteEmployee(scheduled.value.id, 'Remove unused scheduled record')).toEqual({
+    expect(
+      service.deleteEmployee(scheduled.value.id, 'Remove unused scheduled record', 'scheduled-1'),
+    ).toEqual({
       ok: true,
       value: true,
     });
@@ -152,10 +154,172 @@ describe('workforce service', () => {
       ...employee('Employee with leave', 'history-1'),
       active: false,
     });
-    expect(service.deleteEmployee(historical.value.id, 'Try to remove history')).toMatchObject({
-      ok: false,
-      error: { code: 'EMPLOYEE_HAS_HISTORY' },
+    expect(
+      service.deleteEmployee(historical.value.id, 'Remove employee and history', 'history-1'),
+    ).toMatchObject({
+      ok: true,
+      value: true,
     });
+    expect(database.connection.prepare('SELECT COUNT(*) count FROM leaves').get()).toMatchObject({
+      count: 0,
+    });
+    expect(new AuditRepository(database).verify()).toEqual({ valid: true });
+  });
+
+  it('purges an active employee with punches and history leaving no orphan rows, then re-creates and re-imports cleanly', async () => {
+    const { database, auth, service } = await setup();
+    const imports = new ImportService(database, auth);
+    const attendance = new AttendanceService(database, auth);
+    const templates = service.listTemplates();
+    const target = service.createEmployee({
+      ...employee('Purge target', '0042'),
+      hireDate: '2026-11-01',
+    });
+    const partner = service.createEmployee(employee('Teammate', '0043'));
+    if (!templates.ok || !target.ok || !partner.ok) throw new Error('setup failed');
+    const id = target.value.id;
+    const templateId = templates.value[0]!.id;
+    expect(
+      service.updateEmployeeSchedule({
+        employeeId: id,
+        templateId,
+        weekday: 6,
+        partnerId: partner.value.id,
+        effectiveFrom: '2026-11-01',
+        reason: 'Initial schedule',
+      }),
+    ).toMatchObject({ ok: true });
+    expect(
+      service.setOverride({ employeeId: id, date: '2026-11-03', kind: 'rest', reason: 'Day off' }),
+    ).toMatchObject({ ok: true });
+    service.createLeave({
+      employeeId: id,
+      dateFrom: '2026-11-04',
+      dateTo: '2026-11-04',
+      kind: 'leave',
+      reason: 'Approved leave',
+    });
+    const file = {
+      filename: 'attlog.dat',
+      dataBase64: Buffer.from(
+        '0042\t2026-11-01 09:55:00\t1\t0\t15\t0\n' +
+          '0042\t2026-11-01 09:56:30\t1\t0\t15\t0\n' +
+          '0042\t2026-11-01 22:05:00\t1\t1\t15\t0\n',
+      ).toString('base64'),
+      coverageFrom: '2026-11-01 00:00:00',
+      coverageTo: '2026-11-02 23:59:59',
+      coverageConfirmed: true as const,
+    };
+    expect(imports.commit(file)).toMatchObject({ ok: true, value: { rowsNew: 3 } });
+    expect(
+      attendance.correct({
+        employeeId: id,
+        shiftDate: '2026-11-02',
+        field: 'in',
+        newTimeLocal: '2026-11-02 10:00:00',
+        reason: 'Forgot to punch',
+      }),
+    ).toMatchObject({ ok: true });
+    const payroll = new PayrollRepository(database);
+    const policy = payroll.insertPolicy({
+      name: 'Synthetic',
+      config: { id: 'none' },
+      createdBy: 1,
+    });
+    payroll.insertApprovedRun({
+      employeeId: id,
+      month: '2026-11',
+      policyId: policy.id,
+      policySnapshot: {},
+      inputsSnapshot: {},
+      result: {},
+      approvedBy: 1,
+    });
+    database.connection
+      .prepare(
+        "INSERT INTO quarantined_punches(batch_id,device_user_id,punched_at_local,raw_line,resolved_employee_id) SELECT id,'0042-old','2026-11-01 10:00:00','x',? FROM import_batches LIMIT 1",
+      )
+      .run(id);
+
+    expect(service.employeePurgePreview(id)).toMatchObject({
+      ok: true,
+      value: {
+        punches: 3,
+        quarantined: 1,
+        assignments: 1,
+        weeklyRest: 1,
+        overrides: 1,
+        pairs: 1,
+        leaves: 1,
+        corrections: 1,
+        payrollRuns: 1,
+      },
+    });
+    expect(service.deleteEmployee(id, 'Remove mistaken record', '42')).toMatchObject({
+      ok: false,
+      error: { code: 'DELETE_CONFIRMATION_MISMATCH' },
+    });
+    expect(service.deleteEmployee(id, 'Remove mistaken record', '0042')).toEqual({
+      ok: true,
+      value: true,
+    });
+
+    const orphanCount = (): number => {
+      const tables = database.connection
+        .prepare("SELECT name FROM sqlite_master WHERE type='table'")
+        .all() as Array<{ name: string }>;
+      let orphans = 0;
+      for (const { name } of tables) {
+        const columns = (
+          database.connection.prepare(`PRAGMA table_info(${name})`).all() as Array<{ name: string }>
+        ).map((column) => column.name);
+        for (const column of columns) {
+          if (column === 'device_user_id' && name !== 'employees') {
+            orphans += Number(
+              (
+                database.connection
+                  .prepare(
+                    `SELECT COUNT(*) count FROM ${name} WHERE ${column} NOT IN (SELECT device_user_id FROM employees)`,
+                  )
+                  .get() as { count: number }
+              ).count,
+            );
+          }
+          if (/^(employee_id|employee_a|employee_b|resolved_employee_id)$/.test(column)) {
+            orphans += Number(
+              (
+                database.connection
+                  .prepare(
+                    `SELECT COUNT(*) count FROM ${name} WHERE ${column} IS NOT NULL AND ${column} NOT IN (SELECT id FROM employees)`,
+                  )
+                  .get() as { count: number }
+              ).count,
+            );
+          }
+        }
+      }
+      return orphans;
+    };
+    expect(orphanCount()).toBe(0);
+    expect(database.connection.prepare('PRAGMA foreign_key_check').all()).toEqual([]);
+    expect(service.employeePurgePreview(partner.value.id)).toMatchObject({
+      ok: true,
+      value: { pairs: 0 },
+    });
+    const actions = (
+      database.connection
+        .prepare("SELECT action FROM audit_log WHERE entity='employee' AND entity_id=?")
+        .all(String(id)) as Array<{ action: string }>
+    ).map((row) => row.action);
+    expect(actions).toEqual(['employee.created', 'employee.deactivated', 'employee.purged']);
+
+    const recreated = service.createEmployee(employee('Purge target again', '0042'));
+    expect(recreated).toMatchObject({ ok: true, value: { deviceUserId: '0042' } });
+    expect(imports.commit(file)).toMatchObject({
+      ok: true,
+      value: { rowsNew: 3, rowsQuarantined: 0 },
+    });
+    expect(orphanCount()).toBe(0);
     expect(new AuditRepository(database).verify()).toEqual({ valid: true });
   });
 
@@ -181,6 +345,9 @@ describe('workforce service', () => {
         inToMin: 660,
         outFromMin: 1300,
         outToMin: 1380,
+        lateGraceMin: 0,
+        checkoutOpenBeforeEndMin: 10,
+        otCapMin: 480,
         reason: 'Safe pre-assignment edit',
       }),
     ).toMatchObject({ ok: true, value: { name: 'Updated Morning' } });
@@ -194,6 +361,9 @@ describe('workforce service', () => {
         inToMin: 800,
         outFromMin: 700,
         outToMin: 920,
+        lateGraceMin: 20,
+        checkoutOpenBeforeEndMin: 10,
+        otCapMin: 480,
         reason: 'Synthetic validation',
       }),
     ).toMatchObject({ ok: false, error: { code: 'INVALID_TEMPLATE' } });
@@ -216,6 +386,9 @@ describe('workforce service', () => {
         inToMin: 670,
         outFromMin: 1310,
         outToMin: 1390,
+        lateGraceMin: 0,
+        checkoutOpenBeforeEndMin: 10,
+        otCapMin: 480,
         reason: 'Must be rejected',
       }),
     ).toMatchObject({ ok: false, error: { code: 'TEMPLATE_IN_USE' } });

@@ -31,6 +31,7 @@ export const SettingsScreen = ({
   const [resetTarget, setResetTarget] = useState<SessionDto | null>(null);
   const [resetForm, setResetForm] = useState({ password: '', confirm: '' });
   const [resetting, setResetting] = useState(false);
+  const [wipeConfirm, setWipeConfirm] = useState('');
   const [editTarget, setEditTarget] = useState<SessionDto | null>(null);
   const [editForm, setEditForm] = useState({ role: 'admin' as 'admin' | 'user', canImport: true });
   const [savingAccount, setSavingAccount] = useState(false);
@@ -42,6 +43,8 @@ export const SettingsScreen = ({
   const [backupBusy, setBackupBusy] = useState(false);
   const [auditRows, setAuditRows] = useState<readonly AuditDto[]>([]);
   const [auditFilter, setAuditFilter] = useState('');
+  const [auditResetReason, setAuditResetReason] = useState('');
+  const [auditResetConfirmation, setAuditResetConfirmation] = useState('');
 
   const showError = (text: string): void => setNotice({ tone: 'error', text });
   const showSuccess = (text: string): void => setNotice({ tone: 'success', text });
@@ -121,6 +124,16 @@ export const SettingsScreen = ({
     } finally {
       setCreating(false);
     }
+  };
+
+  const wipeAppData = async (): Promise<void> => {
+    if (!window.dawam || wipeConfirm !== 'RESET') return;
+    const result = await window.dawam.settings.resetAppData({ confirmation: 'RESET' });
+    if (!result.ok) {
+      showError(t('settings.wipeFailed'));
+      return;
+    }
+    window.location.reload();
   };
 
   const resetPassword = async (event: React.FormEvent): Promise<void> => {
@@ -208,6 +221,23 @@ export const SettingsScreen = ({
     const result = await window.dawam.audit.verify();
     if (result.ok && result.value.valid) showSuccess(t('settings.auditValid'));
     else showError(t('settings.auditInvalid'));
+  };
+
+  const resetAudit = async (): Promise<void> => {
+    if (!window.dawam || auditResetConfirmation !== 'RESET' || !auditResetReason.trim()) return;
+    if (!window.confirm(t('settings.auditResetConfirm'))) return;
+    const result = await window.dawam.audit.reset({
+      reason: auditResetReason,
+      confirmation: 'RESET',
+    });
+    if (!result.ok) {
+      showError(t(result.error.messageKey));
+      return;
+    }
+    setAuditResetReason('');
+    setAuditResetConfirmation('');
+    showSuccess(t('settings.auditResetDone', { count: result.value.deletedCount }));
+    await load();
   };
 
   const saveIdleLock = async (): Promise<void> => {
@@ -633,9 +663,29 @@ export const SettingsScreen = ({
                 {t('settings.prepareRestore')}
               </button>
             </section>
+            <section className="card settings-operation-card restore-card">
+              <div>
+                <h2>{t('settings.wipeTitle')}</h2>
+                <p>{t('settings.wipeHelp')}</p>
+              </div>
+              <input
+                value={wipeConfirm}
+                placeholder={t('settings.wipePlaceholder')}
+                onChange={(event) => setWipeConfirm(event.target.value)}
+              />
+              <button
+                className="danger-button"
+                type="button"
+                disabled={wipeConfirm !== 'RESET'}
+                onClick={() => void wipeAppData()}
+              >
+                {t('settings.wipeButton')}
+              </button>
+            </section>
           </div>
 
-          <section className="card table-card settings-audit">
+          <details className="card table-card settings-audit">
+            <summary>{t('settings.auditShow')}</summary>
             <div className="settings-table-heading">
               <div>
                 <h2>{t('settings.auditTitle')}</h2>
@@ -680,7 +730,31 @@ export const SettingsScreen = ({
                   ))}
               </tbody>
             </table>
-          </section>
+            <div className="audit-danger-zone">
+              <div>
+                <strong>{t('settings.auditResetTitle')}</strong>
+                <p>{t('settings.auditResetHelp')}</p>
+              </div>
+              <input
+                value={auditResetReason}
+                placeholder={t('settings.auditResetReason')}
+                onChange={(event) => setAuditResetReason(event.target.value)}
+              />
+              <input
+                value={auditResetConfirmation}
+                placeholder={t('settings.auditResetType')}
+                onChange={(event) => setAuditResetConfirmation(event.target.value)}
+              />
+              <button
+                className="danger-button"
+                type="button"
+                disabled={!auditResetReason.trim() || auditResetConfirmation !== 'RESET'}
+                onClick={() => void resetAudit()}
+              >
+                {t('settings.auditResetAction')}
+              </button>
+            </div>
+          </details>
         </>
       )}
     </section>

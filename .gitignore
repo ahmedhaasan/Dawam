@@ -17,5 +17,6 @@ apps/desktop/release/
 data/
 backups/
 photos/
+test data /
 tests/fixtures/real/*
 !tests/fixtures/real/.gitkeep

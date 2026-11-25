@@ -85,6 +85,19 @@ export const matchPunches = (
   }
 
   valid.sort((left, right) => left.time.epochMs - right.time.epochMs);
+  const duplicatePunchIds: string[] = [];
+  const kept: ParsedRawPunch[] = [];
+  const lastKeptByDevice = new Map<string, ParsedRawPunch>();
+  for (const parsed of valid) {
+    const previous = lastKeptByDevice.get(parsed.punch.deviceUserId);
+    if (previous && parsed.time.epochMs - previous.time.epochMs <= 300_000) {
+      duplicatePunchIds.push(parsed.punch.id);
+      continue;
+    }
+    kept.push(parsed);
+    lastKeptByDevice.set(parsed.punch.deviceUserId, parsed);
+  }
+
   const orderedInstances = [...instances].sort(
     (left, right) => left.window.inFrom.epochMs - right.window.inFrom.epochMs,
   );
@@ -92,10 +105,31 @@ export const matchPunches = (
   const covered = new Set<string>();
   const shifts: MatchedShift[] = [];
 
-  for (const instance of orderedInstances) {
+  for (const [instanceIndex, instance] of orderedInstances.entries()) {
     const deviceUserId =
       options.deviceUserIdByEmployee?.[instance.employeeId] ?? instance.employeeId;
-    const employeePunches = valid.filter(({ punch }) => punch.deviceUserId === deviceUserId);
+    const employeePunches = kept.filter(({ punch }) => punch.deviceUserId === deviceUserId);
+    const nextInstance = orderedInstances
+      .slice(instanceIndex + 1)
+      .find((candidate) => candidate.employeeId === instance.employeeId);
+    const isOpenEnded = instance.template.outToMin === null;
+    const openEndedLimit =
+      isOpenEnded && nextInstance
+        ? Math.min(instance.window.outTo.epochMs, nextInstance.window.inFrom.epochMs)
+        : instance.window.outTo.epochMs;
+    const effectiveOutTo =
+      isOpenEnded &&
+      nextInstance &&
+      nextInstance.window.inFrom.epochMs < instance.window.outTo.epochMs
+        ? nextInstance.window.inFrom
+        : instance.window.outTo;
+    const effectiveInstance =
+      effectiveOutTo === instance.window.outTo
+        ? instance
+        : { ...instance, window: { ...instance.window, outTo: effectiveOutTo } };
+    const isBeforeOutZoneEnd = (epochMs: number): boolean =>
+      epochMs <= openEndedLimit &&
+      (!isOpenEnded || !nextInstance || epochMs < nextInstance.window.inFrom.epochMs);
 
     const inCandidates = employeePunches.filter(({ punch, time }) => {
       const matches = inRange(
@@ -106,17 +140,16 @@ export const matchPunches = (
       if (matches) covered.add(punch.id);
       return matches && !used.has(punch.id);
     });
+    const rawIn = inCandidates[0];
     const outCandidates = employeePunches.filter(({ punch, time }) => {
-      const matches = inRange(
-        time.epochMs,
-        instance.window.outFrom.epochMs,
-        instance.window.outTo.epochMs,
-      );
+      const afterIn = rawIn
+        ? time.epochMs - rawIn.time.epochMs > 5 * 60_000
+        : time.epochMs >= instance.window.outFrom.epochMs;
+      const matches = afterIn && isBeforeOutZoneEnd(time.epochMs);
       if (matches) covered.add(punch.id);
-      return matches && !used.has(punch.id);
+      return matches && !used.has(punch.id) && punch.id !== rawIn?.punch.id;
     });
 
-    const rawIn = inCandidates[0];
     const rawOut = outCandidates.at(-1);
     if (rawIn) used.add(rawIn.punch.id);
     if (rawOut && !used.has(rawOut.punch.id)) used.add(rawOut.punch.id);
@@ -148,19 +181,30 @@ export const matchPunches = (
       flags.push('OUT_BEFORE_IN');
     }
 
-    const lateMinutes = punchIn
+    const actualLateMinutes = punchIn
       ? Math.max(0, wholeMinutesBetween(punchIn.epochMs, instance.window.start.epochMs))
       : null;
+    const lateMinutes =
+      actualLateMinutes === null
+        ? null
+        : actualLateMinutes <= (instance.template.lateGraceMin ?? 0)
+          ? 0
+          : actualLateMinutes;
     const earlyLeaveMinutes = punchOut
       ? Math.max(0, wholeMinutesBetween(instance.window.end.epochMs, punchOut.epochMs))
       : null;
+    const overtimeMinutes = punchOut
+      ? Math.max(0, wholeMinutesBetween(punchOut.epochMs, instance.window.end.epochMs))
+      : null;
     const hours = punchIn && punchOut ? (punchOut.epochMs - punchIn.epochMs) / 3_600_000 : null;
+    if (hours !== null && hours < 3) flags.push('SHORT_STAY');
 
     const result: MatchedShift = {
-      instance,
+      instance: effectiveInstance,
       hours,
       lateMinutes,
       earlyLeaveMinutes,
+      overtimeMinutes,
       reviewFlags: unique(flags),
       ...(punchIn ? { punchIn } : {}),
       ...(punchOut ? { punchOut } : {}),
@@ -168,7 +212,7 @@ export const matchPunches = (
     shifts.push(result);
   }
 
-  const reviewPunchIds = valid
+  const reviewPunchIds = kept
     .filter(({ punch }) => !covered.has(punch.id))
     .map(({ punch }) => punch.id);
 
@@ -177,5 +221,7 @@ export const matchPunches = (
     usedPunchIds: [...used],
     reviewPunchIds,
     invalidPunchIds,
+    keptPunchIds: kept.map(({ punch }) => punch.id),
+    duplicatePunchIds,
   };
 };

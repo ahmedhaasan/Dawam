@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<title>Dawam Payroll v3</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cairo:wght@500;700;800&amp;display=swap">
+<style>
+body{margin:0}
+.p{font-family:Cairo,sans-serif;background:#f1f4f9;color:#14233f;padding:28px 40px;box-sizing:border-box;font-size:17px}
+.card{background:#fff;border:1px solid #d5dce8;border-radius:18px;padding:22px}
+h1{margin:0;font-size:36px;font-weight:800}h2{margin:0 0 14px;font-size:22px;font-weight:800}h3{margin:0 0 10px;font-size:19px;font-weight:800}
+label.l{display:block;font-size:14px;font-weight:700;color:#3b4a63;margin-bottom:5px}
+.in{border:1px solid #b7c2d4;border-radius:12px;padding:8px 10px;font:700 15px Cairo,sans-serif;background:#fff;color:#14233f;box-sizing:border-box;min-height:44px}
+.btn{border:0;border-radius:12px;padding:12px 22px;font:700 17px Cairo,sans-serif;cursor:pointer;min-height:46px}
+.pri{background:#1f7a63;color:#fff}.sec{background:#e3f1ed;color:#0f5a46}
+table{width:100%;border-collapse:collapse;font-size:16px}
+th{text-align:start;font-size:14px;font-weight:700;color:#3b4a63;padding:10px 8px;border-bottom:2px solid #d5dce8;white-space:nowrap}
+td{padding:8px;border-bottom:1px solid #e6ebf3;font-weight:500;white-space:nowrap}
+.b{font-weight:800}.late{color:#9a4b00;font-weight:800}.ot{color:#0f5a46;font-weight:800}.g{color:#0f5a46}
+tr.rest td{background:#f6f8fb}
+.chip{display:inline-block;padding:4px 12px;border-radius:99px;font-size:14px;font-weight:700}
+.green{background:#dff3ea;color:#0f5a46}.amber{background:#fdebc8;color:#7a3f00}.red{background:#fbdada;color:#8a1c1c}.gray{background:#e6ebf3;color:#3b4a63}
+.tab{border:0;background:none;font:800 18px Cairo,sans-serif;padding:10px 18px;color:#3b4a63;cursor:pointer;border-bottom:3px solid transparent}
+.tab.on{color:#14233f;border-bottom-color:#1f7a63}
+.opt{border:2px solid #b7c2d4;border-radius:14px;padding:14px;background:#fff;margin-bottom:10px}
+.opt.on{border-color:#1f7a63;background:#eaf6f2}
+.opt b{display:block;font-size:17px;margin-bottom:4px}.opt .h{font-size:14px;color:#3b4a63;font-weight:500;display:block;margin-bottom:8px}
+.fr{display:flex;gap:12px;flex-wrap:wrap}.fr .in{width:130px}
+.row{display:flex;justify-content:space-between;align-items:center;padding:11px 0;border-bottom:1px solid #e6ebf3;font-size:18px;font-weight:700}
+.ic{border:1px solid #b7c2d4;background:#fff;border-radius:10px;width:44px;height:44px;display:inline-flex;align-items:center;justify-content:center;color:#14233f;cursor:pointer}
+.kpi{flex:1;background:#fff;border:1px solid #d5dce8;border-radius:16px;padding:14px 18px}.kpi b{display:block;font-size:30px;font-weight:800}.kpi span{font-size:14px;font-weight:700;color:#3b4a63}
+.todo{display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid #e6ebf3;font-size:16px;font-weight:700}.todo span{flex:1}
+.todo input{width:22px;height:22px;accent-color:#1f7a63}
+</style>
+</helmet>
+<div class="p" dir="rtl">
+<div style="display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:18px;gap:20px;flex-wrap:wrap">
+<div><div style="color:#1f7a63;font-weight:800;font-size:16px">حساب الشهر</div><h1>حساب الراتب</h1></div>
+<div style="display:flex;gap:14px;align-items:flex-end;flex-wrap:wrap">
+<div><label class="l">الموظف</label><div class="in" style="display:flex;align-items:center;min-width:200px">Ahmed Hassan · 1</div></div>
+<div><label class="l">الشهر</label><div class="in" style="display:flex;align-items:center;min-width:160px">نوفمبر 2026</div></div>
+<button class="btn sec">تحديث الحساب</button></div></div>
+<div style="display:flex;gap:14px;margin-bottom:18px;flex-wrap:wrap">
+<div class="kpi"><span>أيام الحضور</span><b>5</b></div><div class="kpi"><span>أيام الغياب</span><b>1</b></div><div class="kpi"><span>إجمالي التأخير</span><b>130 د</b></div><div class="kpi"><span>إجمالي الإضافي</span><b>150 د</b></div></div>
+<div style="display:flex;gap:22px;align-items:flex-start;flex-wrap:wrap">
+<div style="flex:1;min-width:640px">
+<div class="card">
+<div style="display:flex;border-bottom:1px solid #d5dce8;margin-bottom:12px"><button class="tab on">قائمة الأيام</button><button class="tab">قواعد الشهر كامل</button></div>
+<div style="overflow-x:auto"><table>
+<thead><tr><th>التاريخ</th><th>الحالة</th><th>الحضور</th><th>الانصراف</th><th>التأخير</th><th>الإضافي</th><th>طريقة الخصم لهذا اليوم</th><th>الخصم (ج.م)</th><th>المكافأة (ج.م)</th><th>تعديل</th></tr></thead>
+<tbody>
+<tr><td class="b">8 نوفمبر</td><td><span class="chip green">حاضر</span></td><td>12:58</td><td>01:49 +1</td><td class="late">—</td><td class="ot">49 د</td><td><select class="in" aria-label="طريقة الخصم"><option>حسب قاعدة الشهر</option><option>بدون خصم</option><option>بالدقائق</option><option>بنصف الساعة</option><option>بالساعة</option><option>يوم كامل</option><option>مبلغ مخصص</option></select></td><td class="b">0</td><td class="b g">49</td><td><button class="ic" aria-label="تعديل اليوم"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h9"></path><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"></path></svg></button></td></tr>
+<tr><td class="b">9 نوفمبر</td><td><span class="chip amber">متأخر</span></td><td>13:35</td><td>01:02 +1</td><td class="late">35 د</td><td class="ot">2 د</td><td><select class="in" aria-label="طريقة الخصم"><option>حسب قاعدة الشهر</option><option>بدون خصم</option><option>بالدقائق</option><option>بنصف الساعة</option><option>بالساعة</option><option>يوم كامل</option><option>مبلغ مخصص</option></select></td><td class="b">100</td><td class="b g">0</td><td><button class="ic" aria-label="تعديل اليوم"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h9"></path><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"></path></svg></button></td></tr>
+<tr><td class="b">10 نوفمبر</td><td><span class="chip green">حاضر</span></td><td>12:57</td><td>01:00 +1</td><td class="late">—</td><td class="ot">—</td><td><select class="in" aria-label="طريقة الخصم"><option>حسب قاعدة الشهر</option><option>بدون خصم</option><option>بالدقائق</option><option>بنصف الساعة</option><option>بالساعة</option><option>يوم كامل</option><option>مبلغ مخصص</option></select></td><td class="b">0</td><td class="b g">0</td><td><button class="ic" aria-label="تعديل اليوم"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h9"></path><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"></path></svg></button></td></tr>
+<tr><td class="b">11 نوفمبر</td><td><span class="chip amber">متأخر</span></td><td>14:10</td><td>01:30 +1</td><td class="late">70 د</td><td class="ot">30 د</td><td><select class="in" aria-label="طريقة الخصم"><option>حسب قاعدة الشهر</option><option>بدون خصم</option><option>بالدقائق</option><option>بنصف الساعة</option><option>بالساعة</option><option>يوم كامل</option><option>مبلغ مخصص</option></select></td><td class="b">200 <span class="chip gray">معدّل</span></td><td class="b g">30</td><td><button class="ic" aria-label="تعديل اليوم"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h9"></path><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"></path></svg></button></td></tr>
+<tr><td class="b">12 نوفمبر</td><td><span class="chip red">غائب مؤكد</span></td><td>—</td><td>—</td><td>—</td><td>—</td><td class="b">يوم غياب</td><td class="b">200</td><td>0</td><td><button class="ic" aria-label="تعديل اليوم"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h9"></path><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"></path></svg></button></td></tr>
+<tr><td class="b">13 نوفمبر</td><td><span class="chip green">حاضر</span></td><td>12:55</td><td>02:11 +1</td><td class="late">—</td><td class="ot">71 د</td><td><select class="in" aria-label="طريقة الخصم"><option>حسب قاعدة الشهر</option><option>بدون خصم</option><option>بالدقائق</option><option>بنصف الساعة</option><option>بالساعة</option><option>يوم كامل</option><option>مبلغ مخصص</option></select></td><td class="b">0</td><td class="b g">71</td><td><button class="ic" aria-label="تعديل اليوم"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h9"></path><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"></path></svg></button></td></tr>
+<tr class="rest"><td class="b">14 نوفمبر</td><td colspan="9"><span class="chip gray">راحة أسبوعية</span></td></tr>
+<tr><td class="b">15 نوفمبر</td><td><span class="chip amber">متأخر</span></td><td>13:25</td><td>01:10 +1</td><td class="late">25 د</td><td class="ot">10 د</td><td><select class="in" aria-label="طريقة الخصم"><option>حسب قاعدة الشهر</option><option>بدون خصم</option><option>بالدقائق</option><option>بنصف الساعة</option><option>بالساعة</option><option>يوم كامل</option><option>مبلغ مخصص</option></select></td><td class="b">25</td><td class="b g">0</td><td><button class="ic" aria-label="تعديل اليوم"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h9"></path><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"></path></svg></button></td></tr>
+</tbody></table></div>
+</div>
+<div class="card" style="margin-top:18px">
+<h2>قواعد الشهر كامل</h2>
+<div style="display:flex;gap:22px;align-items:flex-start;flex-wrap:wrap">
+<div style="flex:1;min-width:300px">
+<h3>خصم التأخير</h3>
+<div class="opt on"><b>بالساعة (مع حد البداية)</b><span class="h">أقل من الحد: مبلغ ثابت. من الحد فأكثر: تُقرَّب الساعات لأعلى. تأخير ساعتين و10 دقائق = 3 ساعات.</span>
+<div class="fr"><div><label class="l">مبلغ الساعة</label><input class="in" value="100"></div><div><label class="l">تُحسب ساعة من (د)</label><input class="in" value="30"></div><div><label class="l">أقل من الحد (ثابت)</label><input class="in" value="25"></div></div></div>
+<div class="opt"><b>يوم كامل عن كل يوم تأخير</b><span class="h">بدون حد أدنى: أي تأخير يخصم أجر يوم كامل.</span></div>
+<div class="opt"><b>يوم كامل عند حد التأخير</b><span class="h">يُخصم يوم كامل إذا بلغ التأخير الحد.</span><div class="fr"><div><label class="l">الحد (د)</label><input class="in" value="60"></div></div></div>
+<div class="opt"><b>بالدقائق</b><span class="h">مبلغ الساعة ÷ 60 × دقائق التأخير.</span></div>
+<div class="opt"><b>بدون خصم تأخير</b></div>
+<button class="btn sec">تطبيق على كل الأيام</button>
+</div>
+<div style="flex:1;min-width:300px">
+<h3>مكافأة الوقت الإضافي</h3>
+<div class="opt on"><b>مبلغ محدد لكل ساعة إضافية</b><span class="h">الأيام الأقل من الحد الأدنى لا تُحسب.</span>
+<div class="fr"><div><label class="l">مبلغ الساعة</label><input class="in" value="60"></div><div><label class="l">أقل مدة (د)</label><input class="in" value="15"></div><div><label class="l">التقريب</label><select class="in" style="width:170px" aria-label="التقريب"><option>بالدقائق الفعلية</option><option>نصف ساعة لأسفل</option><option>ساعة كاملة لأسفل</option></select></div></div></div>
+<div class="opt"><b>احتساب الإضافي كأيام عمل</b><span class="h">عدد ساعات إضافية محدد = يوم عمل بأجر اليوم.</span><div class="fr"><div><label class="l">ساعات الإضافي = يوم</label><input class="in" value="12"></div></div></div>
+<div class="opt"><b>بدون مكافأة</b></div>
+<button class="btn sec">تطبيق على كل الأيام</button>
+</div></div></div>
+</div>
+<div style="width:390px;flex:none;position:sticky;top:20px">
+<div class="card">
+<h2>ملخص الراتب</h2>
+<div class="row"><span>الراتب الأساسي</span><span style="display:flex;gap:10px;align-items:center">6,000 ج.م <button class="ic" aria-label="تعديل الراتب الأساسي"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h9"></path><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"></path></svg></button></span></div>
+<div class="row"><span>خصم التأخير (130 د)</span><span style="color:#8a1c1c">− 325 ج.م</span></div>
+<div class="row"><span>خصم الغياب (1 يوم)</span><span style="color:#8a1c1c">− 200 ج.م</span></div>
+<div class="row"><span>مكافأة الإضافي (150 د)</span><span class="g">+ 150 ج.م</span></div>
+<h3 style="margin-top:18px">سيتم تطبيقه</h3>
+<div class="todo"><input type="checkbox" checked aria-label="9 نوفمبر تأخير"><span>9 نوفمبر · تأخير 35 د</span><b>100</b></div>
+<div class="todo"><input type="checkbox" checked aria-label="11 نوفمبر يوم كامل"><span>11 نوفمبر · يوم كامل (معدّل)</span><b>200</b></div>
+<div class="todo"><input type="checkbox" checked aria-label="15 نوفمبر تأخير"><span>15 نوفمبر · تأخير 25 د</span><b>25</b></div>
+<div class="todo"><input type="checkbox" checked aria-label="12 نوفمبر غياب"><span>12 نوفمبر · غياب مؤكد</span><b>200</b></div>
+<div style="background:#14233f;color:#fff;border-radius:16px;padding:18px;margin:18px 0">
+<div style="font-size:15px;font-weight:700;color:#cfe3ff">الراتب النهائي بعد الحساب</div>
+<div style="font-size:44px;font-weight:800">5,625 ج.م</div></div>
+<div style="display:flex;gap:10px"><button class="btn pri" style="flex:1">اعتماد الراتب</button><button class="btn sec">طباعة</button></div>
+<div style="font-size:14px;color:#3b4a63;margin-top:12px;font-weight:500">المعاينة لا تُحفظ إلا بعد الاعتماد. الأرقام أمثلة.</div>
+</div></div>
+</div></div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1500}}'>
+class Component extends DCLogic {
+renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

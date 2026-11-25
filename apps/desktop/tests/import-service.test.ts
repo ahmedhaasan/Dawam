@@ -92,7 +92,7 @@ describe('attendance import service', () => {
     ).toMatchObject({ ok: true, value: { rowsNew: 1, rowsDuplicate: 1 } });
     expect(imports.commit(input)).toMatchObject({
       ok: true,
-      value: { rowsNew: 0, rowsDuplicate: 3, rowsQuarantined: 0 },
+      value: { rowsNew: 1, rowsDuplicate: 2, rowsQuarantined: 0 },
     });
     expect(repository.countRawPunches()).toBe(3);
     expect(repository.countQuarantined()).toBe(1);
@@ -140,6 +140,38 @@ describe('attendance import service', () => {
     expect(new ImportRepository(database).listBatches()).toHaveLength(0);
   });
 
+  it('lets an administrator ignore a non-employee device ID in future imports', async () => {
+    const { imports } = await setup();
+    const file = {
+      filename: 'device_admin.dat',
+      dataBase64: encoded('7\t2026-11-01 10:00:00\t1\t0\t15\t0\n'),
+      coverageFrom: '2026-11-01 00:00:00',
+      coverageTo: '2026-11-01 23:59:59',
+      coverageConfirmed: true as const,
+    };
+    expect(imports.commit(file)).toMatchObject({
+      ok: true,
+      value: { rowsQuarantined: 1, rowsIgnored: 0 },
+    });
+    const quarantined = imports.listQuarantined();
+    if (!quarantined.ok) throw new Error(quarantined.error.code);
+    expect(
+      imports.ignoreDeviceId({
+        quarantineId: quarantined.value[0]!.id,
+        reason: 'Device administrator is not an employee',
+      }),
+    ).toEqual({ ok: true, value: true });
+    expect(imports.listQuarantined()).toEqual({ ok: true, value: [] });
+    expect(imports.preview(file)).toMatchObject({
+      ok: true,
+      value: { predictedIgnored: 1, predictedQuarantined: 0 },
+    });
+    expect(imports.commit({ ...file, filename: 'device_admin_again.dat' })).toMatchObject({
+      ok: true,
+      value: { rowsIgnored: 0, rowsDuplicate: 1 },
+    });
+  });
+
   it('enforces the import permission for normal users', async () => {
     const { auth, imports } = await setup();
     await auth.createUser({
@@ -184,5 +216,73 @@ describe('attendance import service', () => {
     ).toThrow('synthetic failure');
     expect(new ImportRepository(database).listBatches()).toHaveLength(0);
     expect(new ImportRepository(database).countRawPunches()).toBe(0);
+  });
+
+  it('reports the validation summary in preview without writing, then in the commit result', async () => {
+    const { database, imports } = await setup();
+    const repository = new ImportRepository(database);
+    expect(
+      imports.commit({
+        filename: 'first.dat',
+        dataBase64: encoded(
+          '001\t2026-11-01 09:55:00\t1\t0\t15\t0\n' + '001\t2026-11-01 22:05:00\t1\t1\t15\t0\n',
+        ),
+        coverageFrom: '2026-11-01 00:00:00',
+        coverageTo: '2026-11-01 23:59:59',
+        coverageConfirmed: true,
+      }),
+    ).toMatchObject({ ok: true, value: { rowsNew: 2, rowsReplaced: 0 } });
+    const newer = {
+      filename: 'newer.dat',
+      dataBase64: encoded(
+        '      001\t2026-11-01 09:55:00\t1\t0\t15\t0\r\n' +
+          '      001\t2026-11-01 09:55:00\t1\t0\t15\t0\r\n' +
+          '      001\t2026-11-01 09:58:00\t1\t0\t15\t0\r\n' +
+          '      001\t2026-11-02 21:00:00\t1\t1\t15\t0\r\n' +
+          '\t  42\t2026-11-02 10:00:00\t1\t0\t15\t0\r\n' +
+          '      001\t2026-13-02 10:00:00\t1\t0\t15\t0\r\n',
+      ),
+    };
+    const report = {
+      rowsValid: 5,
+      rowsMalformed: 1,
+      malformed: [expect.objectContaining({ lineNo: 6, reason: 'INVALID_TIMESTAMP' })],
+      exactDuplicates: 1,
+      repeatedScans: 1,
+      minLocal: '2026-11-01 09:55:00',
+      maxLocal: '2026-11-02 21:00:00',
+      daysCovered: 2,
+      daysWithPunches: 2,
+      unknownDeviceIds: [{ deviceUserId: '42', punchCount: 1 }],
+      punchesToReplace: 1,
+      byDeviceId: [
+        {
+          deviceUserId: '001',
+          status: 'KNOWN',
+          employeeId: expect.any(Number),
+          employeeName: 'Synthetic Employee',
+          punchCount: 4,
+          daysWithPunches: 2,
+          firstLocal: '2026-11-01 09:55:00',
+          lastLocal: '2026-11-02 21:00:00',
+          exactDuplicates: 1,
+          repeatedScans: 1,
+          punchesToReplace: 1,
+        },
+        expect.objectContaining({ deviceUserId: '42', status: 'UNKNOWN', punchesToReplace: 0 }),
+      ],
+    };
+    expect(imports.preview(newer)).toMatchObject({ ok: true, value: { report } });
+    expect(repository.countRawPunches()).toBe(2);
+    expect(
+      imports.commit({
+        ...newer,
+        coverageFrom: '2026-11-01 00:00:00',
+        coverageTo: '2026-11-02 23:59:59',
+        coverageConfirmed: true,
+      }),
+    ).toMatchObject({ ok: true, value: { rowsReplaced: 1, report } });
+    expect(repository.countRawPunches()).toBe(3);
+    expect(new AuditRepository(database).verify()).toEqual({ valid: true });
   });
 });

@@ -1,0 +1,737 @@
+/* attendance screen styles (loaded after styles.css) */
+
+.attendance-screen {
+  --att-date-w: 136px;
+  --att-actions-w: 164px;
+  --att-head-bg: #eef3f9;
+  --att-corner-bg: #e4eef0;
+  --att-row-hover: #f5f9fc;
+  --att-row-selected: #eaf6f1;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+  max-width: 100%;
+  min-height: 0;
+  font-size: 15px;
+  font-weight: 500;
+}
+.attendance-screen > * {
+  min-width: 0;
+}
+
+/* Header */
+.attendance-screen .att-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 12px;
+}
+.attendance-screen .att-heading h1 {
+  margin: 2px 0 4px;
+  font-size: clamp(26px, 2.4vw, 34px);
+  font-weight: 800;
+  line-height: 1.25;
+}
+.attendance-screen .att-heading p {
+  margin: 0;
+  color: var(--dw-muted);
+  font-size: 15px;
+  font-weight: 600;
+}
+
+/* Toolbar: wraps, never overflows */
+.attendance-screen .att-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 12px 16px;
+  padding: 14px 18px;
+}
+.attendance-screen .att-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+.attendance-screen .att-field > span {
+  color: var(--dw-muted);
+  font-size: 14px;
+  font-weight: 700;
+}
+.attendance-screen .att-field em {
+  color: var(--dw-danger);
+  font-style: normal;
+}
+.attendance-screen .att-field input,
+.attendance-screen .att-field select {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 44px;
+  padding: 0 12px;
+  border: 1px solid var(--dw-border-strong);
+  border-radius: 10px;
+  background: #fff;
+  color: var(--dw-text);
+  font-size: 15px;
+  font-weight: 600;
+}
+.attendance-screen .att-field input:focus-visible,
+.attendance-screen .att-field select:focus-visible {
+  outline: 3px solid rgba(31, 122, 99, 0.25);
+  border-color: var(--dw-primary);
+}
+.attendance-screen .att-field-employee {
+  flex: 2 1 280px;
+}
+.attendance-screen .att-field-month {
+  flex: 1 1 180px;
+  max-width: 260px;
+}
+.attendance-screen .att-toolbar-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin-inline-start: auto;
+}
+.attendance-screen .att-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 0 16px;
+  border: 1px solid var(--dw-border-strong);
+  border-radius: 10px;
+  background: #fff;
+  color: var(--dw-text);
+  font-size: 15px;
+  font-weight: 700;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.attendance-screen .att-btn:hover:not(:disabled) {
+  border-color: var(--dw-primary);
+  color: var(--dw-primary-dark);
+}
+.attendance-screen .att-btn:disabled,
+.attendance-screen .att-icon-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Icon buttons */
+.attendance-screen .att-icon-btn {
+  display: inline-grid;
+  place-items: center;
+  flex: 0 0 auto;
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  border: 1px solid var(--dw-border-strong);
+  border-radius: 10px;
+  background: #fff;
+  color: var(--dw-text);
+  cursor: pointer;
+  transition:
+    background-color 0.12s,
+    border-color 0.12s,
+    color 0.12s;
+}
+.attendance-screen .att-toolbar .att-icon-btn {
+  width: 44px;
+  height: 44px;
+}
+.attendance-screen .att-icon-btn:hover:not(:disabled) {
+  border-color: var(--dw-primary);
+  background: var(--dw-primary-soft);
+  color: var(--dw-primary-dark);
+}
+.attendance-screen .att-icon-btn:focus-visible,
+.attendance-screen .att-btn:focus-visible,
+.attendance-screen .att-tabs button:focus-visible,
+.attendance-screen .att-segment button:focus-visible {
+  outline: 3px solid rgba(31, 122, 99, 0.35);
+  outline-offset: 1px;
+}
+.attendance-screen .att-icon-in {
+  color: #146c43;
+}
+.attendance-screen .att-icon-out {
+  color: #9a4b00;
+}
+.attendance-screen .att-icon-edit {
+  color: #2b4f8a;
+}
+.attendance-screen .att-icon-in:hover:not(:disabled) {
+  border-color: #146c43;
+  background: #e3f5ea;
+  color: #0f5132;
+}
+.attendance-screen .att-icon-out:hover:not(:disabled) {
+  border-color: #9a4b00;
+  background: #fdf0dc;
+  color: #7a3f00;
+}
+.attendance-screen .att-icon-edit:hover:not(:disabled) {
+  border-color: #2b4f8a;
+  background: #e6eefb;
+  color: #1d3966;
+}
+.attendance-screen svg {
+  display: block;
+  flex: 0 0 auto;
+}
+[dir='rtl'] .attendance-screen .att-icon-flip {
+  transform: scaleX(-1);
+}
+
+/* Messages */
+.attendance-screen .att-message,
+.attendance-screen .att-note {
+  padding: 10px 14px;
+  border-radius: 10px;
+  font-size: 15px;
+  font-weight: 600;
+}
+.attendance-screen .att-message {
+  border: 1px solid #b9dccf;
+  background: var(--dw-primary-soft);
+  color: var(--dw-primary-dark);
+}
+.attendance-screen .att-note {
+  border: 1px solid #f0d3a0;
+  background: var(--dw-warning-soft);
+  color: var(--dw-warning);
+}
+
+/* Summary tiles */
+.attendance-screen .att-summary {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 10px;
+  padding: 12px;
+}
+.attendance-screen .att-summary > div {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 4px;
+  min-width: 0;
+  padding: 10px 14px;
+  border: 1px solid var(--dw-border);
+  border-radius: 12px;
+  background: #f8fafd;
+}
+.attendance-screen .att-summary span {
+  color: var(--dw-muted);
+  font-size: 13px;
+  font-weight: 700;
+}
+.attendance-screen .att-summary strong {
+  overflow-wrap: anywhere;
+  font-size: 20px;
+  font-weight: 800;
+  line-height: 1.3;
+}
+.attendance-screen .att-summary small {
+  color: var(--dw-muted);
+  font-size: 13px;
+  font-weight: 600;
+}
+.attendance-screen .att-summary-person {
+  grid-column: span 2;
+  background: var(--dw-primary-soft) !important;
+  border-color: #b9dccf !important;
+}
+.attendance-screen .att-summary-person strong {
+  font-size: 18px;
+}
+.attendance-screen .att-tile-good strong {
+  color: #146c43;
+}
+.attendance-screen .att-tile-warn strong {
+  color: #9a4b00;
+}
+.attendance-screen .att-tile-bad strong {
+  color: var(--dw-danger);
+}
+
+/* Legend */
+.attendance-screen .att-legend {
+  padding: 10px 14px;
+  border: 1px solid var(--dw-border);
+  border-radius: 12px;
+  background: var(--dw-card);
+}
+.attendance-screen .att-legend summary {
+  font-size: 15px;
+  font-weight: 800;
+  cursor: pointer;
+}
+.attendance-screen .att-legend-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-block: 10px 6px;
+}
+.attendance-screen .att-legend ul {
+  margin: 6px 0 0;
+  padding-inline-start: 20px;
+  color: var(--dw-muted);
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.7;
+}
+
+/* Tabs */
+.attendance-screen .att-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  border-block-end: 2px solid var(--dw-border);
+}
+.attendance-screen .att-tabs button {
+  margin-block-end: -2px;
+  padding: 10px 18px;
+  border: 0;
+  border-block-end: 3px solid transparent;
+  background: transparent;
+  color: var(--dw-muted);
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.attendance-screen .att-tabs button.active {
+  border-block-end-color: var(--dw-primary);
+  color: var(--dw-primary-dark);
+  font-weight: 800;
+}
+
+/* Day edit panel (inline, never overlays the table) */
+.attendance-screen .att-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 18px 20px;
+  border: 1px solid #b9dccf;
+  border-inline-start: 5px solid var(--dw-primary);
+  scroll-margin-block: 16px;
+}
+.attendance-screen .att-panel-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+.attendance-screen .att-panel-head h2 {
+  margin: 2px 0;
+  font-size: 22px;
+  font-weight: 800;
+}
+.attendance-screen .att-panel-head small {
+  color: var(--dw-muted);
+  font-size: 14px;
+  font-weight: 600;
+}
+.attendance-screen .att-panel-body {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 380px), 1fr));
+  align-items: start;
+  gap: 14px;
+}
+.attendance-screen .att-panel-group {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+  margin: 0;
+  padding: 14px 16px 16px;
+  border: 1px solid var(--dw-border);
+  border-radius: 12px;
+  background: #f8fafd;
+}
+.attendance-screen .att-panel-group legend {
+  padding-inline: 6px;
+  font-size: 16px;
+  font-weight: 800;
+}
+.attendance-screen .att-panel-help {
+  margin: 0;
+  color: var(--dw-muted);
+  font-size: 14px;
+  font-weight: 600;
+}
+.attendance-screen .att-panel-fields {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 12px;
+}
+.attendance-screen .att-field-wide {
+  grid-column: 1 / -1;
+}
+.attendance-screen .att-panel-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 10px;
+}
+.attendance-screen .att-panel-actions .module-primary {
+  min-height: 44px;
+  font-size: 15px;
+}
+.attendance-screen .att-panel-more {
+  justify-self: start;
+  align-self: start;
+}
+.attendance-screen .att-segment {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 4px;
+  border: 1px solid var(--dw-border);
+  border-radius: 12px;
+  background: #fff;
+  align-self: flex-start;
+}
+.attendance-screen .att-segment button {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 40px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 9px;
+  background: transparent;
+  color: var(--dw-muted);
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.attendance-screen .att-segment button.active {
+  background: var(--dw-primary);
+  color: #fff;
+}
+
+/* Table scroll container: the only place that scrolls horizontally */
+.attendance-screen .att-table-wrap {
+  position: relative;
+  max-width: 100%;
+  min-width: 0;
+  max-height: clamp(360px, calc(100dvh - 320px), 960px);
+  padding: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+  isolation: isolate;
+  scrollbar-width: thin;
+}
+.attendance-screen .att-table {
+  width: 100%;
+  min-width: 1180px;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: 15px;
+  font-weight: 600;
+}
+.attendance-screen .att-overtime {
+  min-width: 720px;
+}
+.attendance-screen .att-table th,
+.attendance-screen .att-table td {
+  box-sizing: border-box;
+  padding: 12px 14px;
+  border-block-end: 1px solid var(--dw-border);
+  background: var(--dw-card);
+  color: var(--dw-text);
+  text-align: start;
+  vertical-align: middle;
+  white-space: nowrap;
+}
+.attendance-screen .att-table thead th {
+  position: sticky;
+  inset-block-start: 0;
+  z-index: var(--z-sticky-head);
+  padding-block: 14px;
+  border-block-end: 2px solid var(--dw-border-strong);
+  background: var(--att-head-bg);
+  font-size: 14px;
+  font-weight: 800;
+}
+.attendance-screen .att-table tbody th {
+  font-weight: 800;
+}
+
+/* Sticky first (date) column */
+.attendance-screen .att-table .att-col-date {
+  position: sticky;
+  inset-inline-start: 0;
+  z-index: var(--z-sticky-col);
+  width: var(--att-date-w);
+  min-width: var(--att-date-w);
+  max-width: var(--att-date-w);
+  border-inline-end: 1px solid var(--dw-border-strong);
+  box-shadow: 4px 0 6px -4px rgba(20, 35, 63, 0.22);
+}
+[dir='rtl'] .attendance-screen .att-table .att-col-date {
+  box-shadow: -4px 0 6px -4px rgba(20, 35, 63, 0.22);
+}
+
+/* Sticky last (actions) column */
+.attendance-screen .att-table .att-col-actions {
+  position: sticky;
+  inset-inline-end: 0;
+  z-index: var(--z-sticky-col);
+  width: var(--att-actions-w);
+  min-width: var(--att-actions-w);
+  max-width: var(--att-actions-w);
+  border-inline-start: 1px solid var(--dw-border-strong);
+  box-shadow: -4px 0 6px -4px rgba(20, 35, 63, 0.22);
+  text-align: center;
+}
+[dir='rtl'] .attendance-screen .att-table .att-col-actions {
+  box-shadow: 4px 0 6px -4px rgba(20, 35, 63, 0.22);
+}
+
+/* Header cells that are also sticky columns */
+.attendance-screen .att-table thead th.att-col-date,
+.attendance-screen .att-table thead th.att-col-actions {
+  z-index: var(--z-sticky-corner);
+  background: var(--att-corner-bg);
+}
+
+.attendance-screen .att-col-shift {
+  min-width: 160px;
+}
+.attendance-screen .att-col-status {
+  min-width: 190px;
+  white-space: normal !important;
+}
+.attendance-screen .att-shift-name {
+  display: block;
+  font-weight: 700;
+}
+.attendance-screen .att-shift-time {
+  display: block;
+  margin-block-start: 2px;
+  color: var(--dw-muted);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.attendance-screen .att-table tbody tr:hover > * {
+  background: var(--att-row-hover);
+}
+.attendance-screen .att-table tbody tr.is-selected > * {
+  background: var(--att-row-selected);
+}
+.attendance-screen .att-table tbody tr:last-child > * {
+  border-block-end: 0;
+}
+
+.attendance-screen .att-row-actions {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+.attendance-screen .att-time {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+}
+.attendance-screen .att-next-day {
+  display: inline-block;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: #e6e0fa;
+  color: #4b2f9c;
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1.5;
+}
+.attendance-screen .att-num {
+  font-variant-numeric: tabular-nums;
+}
+.attendance-screen .att-num-warn {
+  color: #9a4b00;
+  font-weight: 700;
+}
+.attendance-screen .att-num-good {
+  color: #146c43;
+  font-weight: 700;
+}
+.attendance-screen .att-muted {
+  color: #8592a8;
+}
+.attendance-screen .att-empty {
+  padding: 28px !important;
+  color: var(--dw-muted);
+  text-align: center !important;
+}
+.attendance-screen .att-sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+/* Status chips */
+.attendance-screen .att-status-stack {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+.attendance-screen .att-chip {
+  display: inline-block;
+  padding: 3px 10px;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  background: var(--dw-neutral);
+  color: var(--dw-muted);
+  font-size: 13px;
+  font-weight: 800;
+  line-height: 1.6;
+  white-space: nowrap;
+}
+.attendance-screen .att-chip-present {
+  border-color: #a8dcbf;
+  background: #e3f5ea;
+  color: #0f5132;
+}
+.attendance-screen .att-chip-early_leave,
+.attendance-screen .att-chip-review,
+.attendance-screen .att-chip-pending_import,
+.attendance-screen .att-chip-not_closed,
+.attendance-screen .att-chip-coverage_needed {
+  border-color: #f0d3a0;
+  background: var(--dw-warning-soft);
+  color: var(--dw-warning);
+}
+.attendance-screen .att-chip-absent,
+.attendance-screen .att-chip-missing_in,
+.attendance-screen .att-chip-missing_out {
+  border-color: #f1b5b5;
+  background: var(--dw-danger-soft);
+  color: var(--dw-danger);
+}
+.attendance-screen .att-chip-rest,
+.attendance-screen .att-chip-no_schedule {
+  border-color: #cfd6e2;
+  background: #eceff4;
+  color: #4a566b;
+}
+.attendance-screen .att-chip-leave,
+.attendance-screen .att-chip-permission {
+  border-color: #cfc3f3;
+  background: #efeafd;
+  color: #4b2f9c;
+}
+.attendance-screen .att-edited {
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: #e6eefb;
+  color: #1d3966;
+  font-size: 12px;
+  font-weight: 800;
+}
+.attendance-screen .att-flag {
+  flex-basis: 100%;
+  color: var(--dw-warning);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+@media (max-width: 1100px) {
+  .attendance-screen .att-summary-person {
+    grid-column: 1 / -1;
+  }
+}
+@media (max-width: 760px) {
+  .attendance-screen .att-field-month {
+    max-width: none;
+  }
+  .attendance-screen .att-toolbar-actions {
+    margin-inline-start: 0;
+  }
+  .attendance-screen .att-table-wrap {
+    max-height: 70dvh;
+  }
+}
+
+@media print {
+  .attendance-screen .att-toolbar,
+  .attendance-screen .att-panel,
+  .attendance-screen .att-legend,
+  .attendance-screen .att-tabs,
+  .attendance-screen .att-col-actions {
+    display: none !important;
+  }
+  .attendance-screen .att-table-wrap {
+    max-height: none;
+    overflow: visible;
+    box-shadow: none;
+  }
+  .attendance-screen .att-table {
+    min-width: 0;
+  }
+  .attendance-screen .att-table th,
+  .attendance-screen .att-table td {
+    position: static !important;
+    box-shadow: none !important;
+  }
+}
+
+.attendance-screen .att-table tbody .att-col-date {
+  white-space: normal;
+}
+.attendance-screen .att-date-main {
+  display: block;
+  font-weight: 800;
+}
+.attendance-screen .att-date-weekday {
+  display: block;
+  color: var(--dw-muted);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+/* Sticky layout v3: the employee/month bar stays under the top bar at every width, and the day table is
+   sized to the remaining visible area so its first and last rows can always be reached. Wheel scrolling
+   chains to the page once the table reaches its end. */
+.attendance-screen .att-toolbar {
+  position: sticky;
+  inset-block-start: var(--topbar-h, 82px);
+  z-index: 40;
+  padding-block: 10px;
+  box-shadow: 0 6px 16px rgba(20, 35, 63, 0.08);
+}
+.attendance-screen .att-table-wrap {
+  max-height: max(320px, calc(100dvh - var(--topbar-h, 82px) - var(--sticky-bar-h, 90px) - 28px));
+  overscroll-behavior: auto;
+  scroll-margin-block-start: calc(var(--topbar-h, 82px) + var(--sticky-bar-h, 90px) + 12px);
+}
+@media (max-height: 560px) {
+  .attendance-screen .att-toolbar {
+    position: static;
+    box-shadow: none;
+  }
+}
+
+.attendance-screen .att-summary {
+  display: flex;
+  flex-wrap: wrap;
+}
+.attendance-screen .att-summary > div {
+  flex: 1 1 130px;
+}
+.attendance-screen .att-summary > .att-summary-person {
+  flex: 2 1 240px;
+}

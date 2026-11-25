@@ -85,6 +85,44 @@ export class ImportRepository {
       .run(batchId, fromLocal, toLocal, confirmed ? 1 : 0);
   }
 
+  private replaceableDayPunches(
+    deviceUserId: string,
+    localDate: string,
+    keepTimes: readonly string[],
+  ): { table: string; id: number }[] {
+    const from = `${localDate} 00:00:00`;
+    const to = `${localDate} 23:59:59`;
+    const keep = new Set(keepTimes);
+    const replaceable: { table: string; id: number }[] = [];
+    for (const table of ['raw_punches', 'quarantined_punches']) {
+      const rows = this.database.connection
+        .prepare(
+          `SELECT id, punched_at_local AS at FROM ${table} WHERE device_user_id=? AND punched_at_local BETWEEN ? AND ?`,
+        )
+        .all(deviceUserId, from, to) as { id: number; at: string }[];
+      for (const row of rows) if (!keep.has(row.at)) replaceable.push({ table, id: row.id });
+    }
+    return replaceable;
+  }
+
+  /** Read-only: how many stored punches deleteDayPunches would remove. */
+  countDayPunchesToReplace(
+    deviceUserId: string,
+    localDate: string,
+    keepTimes: readonly string[],
+  ): number {
+    return this.replaceableDayPunches(deviceUserId, localDate, keepTimes).length;
+  }
+
+  /** Removes stored punches for one device ID and date that are absent from the newer file. */
+  deleteDayPunches(deviceUserId: string, localDate: string, keepTimes: readonly string[]): number {
+    const rows = this.replaceableDayPunches(deviceUserId, localDate, keepTimes);
+    for (const row of rows) {
+      this.database.connection.prepare(`DELETE FROM ${row.table} WHERE id=?`).run(row.id);
+    }
+    return rows.length;
+  }
+
   insertPunch(input: StoredPunchInput): boolean {
     const inserted = this.database.connection
       .prepare(
@@ -123,6 +161,39 @@ export class ImportRepository {
     return inserted.changes === 1;
   }
 
+  isDeviceIdIgnored(deviceUserId: string): boolean {
+    return Boolean(
+      this.database.connection
+        .prepare('SELECT 1 FROM ignored_device_ids WHERE device_user_id=?')
+        .get(deviceUserId),
+    );
+  }
+
+  ignoreDeviceId(deviceUserId: string, reason: string, ignoredBy: number, ignoredAt: string): void {
+    this.database.connection
+      .prepare(
+        `INSERT INTO ignored_device_ids(device_user_id,reason,ignored_by,ignored_at)
+         VALUES(?,?,?,?)
+         ON CONFLICT(device_user_id) DO UPDATE SET reason=excluded.reason,ignored_by=excluded.ignored_by,ignored_at=excluded.ignored_at`,
+      )
+      .run(deviceUserId, reason, ignoredBy, ignoredAt);
+    this.database.connection
+      .prepare(
+        `UPDATE quarantined_punches SET ignored_at=?
+         WHERE device_user_id=? AND resolved_employee_id IS NULL`,
+      )
+      .run(ignoredAt, deviceUserId);
+  }
+
+  markIgnoredPunches(deviceUserId: string, ignoredAt: string): void {
+    this.database.connection
+      .prepare(
+        `UPDATE quarantined_punches SET ignored_at=?
+         WHERE device_user_id=? AND resolved_employee_id IS NULL`,
+      )
+      .run(ignoredAt, deviceUserId);
+  }
+
   hasQuarantined(deviceUserId: string, punchedAtLocal: string): boolean {
     return Boolean(
       this.database.connection
@@ -145,7 +216,7 @@ export class ImportRepository {
   listUnresolvedQuarantined(): readonly QuarantinedPunchRecord[] {
     const rows = this.database.connection
       .prepare(
-        `SELECT * FROM quarantined_punches WHERE resolved_employee_id IS NULL
+        `SELECT * FROM quarantined_punches WHERE resolved_employee_id IS NULL AND ignored_at IS NULL
          ORDER BY punched_at_local,id`,
       )
       .all() as Array<Record<string, unknown>>;

@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Dawam Payroll v3</title>
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@500;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#f6f5f0;--card:#fff;--ink:#1d1b16;--mut:#6b675c;--line:#e4e1d6;--pri:#0f6b5c;--pri2:#e3f2ee;--bad:#c0392b;--bad2:#fbeae8;--ok:#1e8449;--ok2:#e6f4ea;--warn:#b9770e;--warn2:#fdf1dc;--rest:#eceae2}
+*{box-sizing:border-box;margin:0}html,body{height:100%}
+body{font-family:Cairo,Tahoma,sans-serif;font-weight:600;font-size:15px;background:var(--bg);color:var(--ink);display:flex;flex-direction:column}
+header{display:flex;align-items:center;gap:12px;padding:10px 20px;background:var(--card);border-bottom:1px solid var(--line);flex-wrap:wrap}
+header h1{font-size:20px;font-weight:800}
+select,input,button{font:inherit;font-weight:700}
+select,input{border:1px solid var(--line);border-radius:8px;padding:6px 10px;background:#fff;color:var(--ink)}
+.btn{border:0;border-radius:8px;padding:8px 14px;cursor:pointer;background:var(--pri);color:#fff}
+.btn.ghost{background:var(--pri2);color:var(--pri)}.sp{flex:1}
+main{flex:1;min-height:0;display:grid;grid-template-columns:340px 1fr;gap:16px;padding:16px 20px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px}
+aside{overflow:auto;padding:16px;display:flex;flex-direction:column;gap:14px}
+.sal-net{background:var(--pri);color:#fff;border-radius:12px;padding:16px;text-align:center}
+.sal-net b{display:block;font-size:34px;font-weight:800}
+.row{display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px dashed var(--line)}
+.row.tot{border:0;font-size:17px;font-weight:800}
+.neg{color:var(--bad)}.pos{color:var(--ok)}
+.chips{display:flex;gap:8px;flex-wrap:wrap}
+.chip{padding:4px 10px;border-radius:99px;font-size:13px}
+.c-ok{background:var(--ok2);color:var(--ok)}.c-bad{background:var(--bad2);color:var(--bad)}.c-warn{background:var(--warn2);color:var(--warn)}.c-rest{background:var(--rest);color:var(--mut)}
+.tablebox{display:flex;flex-direction:column;min-height:0}
+.tb-head{display:flex;align-items:center;gap:10px;padding:12px 16px;border-bottom:1px solid var(--line);flex-wrap:wrap}
+.scroll{overflow:auto;flex:1;min-height:0}
+table{border-collapse:separate;border-spacing:0;width:100%;min-width:1040px}
+th,td{padding:9px 12px;text-align:center;border-bottom:1px solid var(--line);white-space:nowrap}
+thead th{position:sticky;top:0;background:#f0eee6;z-index:3;font-weight:800}
+th:first-child,td:first-child{position:sticky;inset-inline-start:0;background:#fff;z-index:2;box-shadow:-1px 0 0 var(--line)}
+thead th:first-child{z-index:4;background:#f0eee6}
+tr.rest td,tr.rest td:first-child{background:var(--rest);color:var(--mut)}
+tr.abs td,tr.abs td:first-child{background:var(--bad2)}
+td select{max-width:130px;padding:4px 6px;font-size:13px}
+td.last,th.last{position:sticky;inset-inline-end:0;background:#fff;box-shadow:1px 0 0 var(--line);z-index:2}
+thead th.last{z-index:4;background:#f0eee6}tr.rest td.last{background:var(--rest)}tr.abs td.last{background:var(--bad2)}
+.drawer-bg{position:fixed;inset:0;background:#0006;display:none;z-index:20}
+.drawer{position:fixed;top:0;bottom:0;inset-inline-start:0;width:min(520px,100%);background:#fff;z-index:21;display:none;flex-direction:column}
+.open{display:flex}.drawer-bg.open{display:block}
+.dr-body{flex:1;overflow:auto;padding:16px;display:grid;gap:10px}
+.dr-body h3{margin-top:8px;color:var(--pri)}
+.f{display:grid;grid-template-columns:1fr 110px;gap:8px;align-items:center}
+.f small{display:block;color:var(--mut);font-weight:500}
+.dr-foot{padding:12px 16px;border-top:1px solid var(--line);display:flex;gap:8px}
+@media(max-width:900px){main{grid-template-columns:1fr;overflow:auto}aside{overflow:visible}.tablebox{min-height:420px}}
+</style></head><body>
+<header>
+ <h1>الرواتب</h1>
+ <select id="emp"><option>2 — أحمد (صباحي)</option></select>
+ <select><option>نوفمبر 2026</option></select>
+ <span class="chip c-warn">البيانات حتى 30/11 · مستورد من attlog</span>
+ <span class="sp"></span>
+ <button class="btn ghost" onclick="dr(1)">⚙ قواعد الشهر</button>
+ <button class="btn">تصدير كشف الراتب</button>
+</header>
+<main>
+<aside class="card">
+ <div class="sal-net">صافي الراتب<b id="net">0</b>جنيه</div>
+ <div class="chips" id="chips"></div>
+ <div>
+  <div class="row"><span>الراتب الأساسي</span><span id="base"></span></div>
+  <div class="row"><span>أجر اليوم</span><span id="wage"></span></div>
+  <div class="row"><span>إجمالي الخصم (تأخير)</span><span class="neg" id="ded"></span></div>
+  <div class="row"><span>خصم الغياب</span><span class="neg" id="absd"></span></div>
+  <div class="row"><span>إجمالي المكافآت (إضافي)</span><span class="pos" id="bon"></span></div>
+  <div class="row tot"><span>الصافي</span><span id="net2"></span></div>
+ </div>
+ <div class="card" style="padding:12px;background:var(--pri2);border:0">
+  <b>القاعدة الحالية</b><div id="ruleTxt" style="font-weight:500;margin-top:4px"></div>
+ </div>
+</aside>
+<section class="card tablebox">
+ <div class="tb-head"><b>تفاصيل الأيام</b>
+  <span class="chip c-rest">إجازة</span><span class="chip c-bad">غياب</span><span class="chip c-warn">تأخير</span><span class="chip c-ok">إضافي</span>
+  <span class="sp"></span><small style="color:var(--mut)">تعديل أي يوم يحدّث الملخص فوراً</small></div>
+ <div class="scroll"><table><thead><tr>
+  <th>اليوم</th><th>الحالة</th><th>حضور</th><th>انصراف</th><th>تأخير (د)</th><th>إضافي (د)</th><th>طريقة الخصم</th><th>الخصم</th><th>طريقة المكافأة</th><th>المكافأة</th><th class="last">الصافي</th></tr></thead>
+ <tbody id="tb"></tbody></table></div>
+</section>
+</main>
+<div class="drawer-bg" id="bg" onclick="dr(0)"></div>
+<div class="drawer" id="dr">
+ <div class="tb-head"><b style="font-size:18px">قواعد الشهر</b><span class="sp"></span><button class="btn ghost" onclick="dr(0)">✕ إغلاق</button></div>
+ <div class="dr-body">
+  <h3>1) الأسعار (مشتركة لكل الطرق)</h3>
+  <label class="f"><span>الراتب الأساسي<small>جنيه</small></span><input type="number" id="salary" value="6000"></label>
+  <label class="f"><span>سعر ساعة التأخير<small>جنيه/ساعة</small></span><input type="number" id="H" value="40"></label>
+  <label class="f"><span>فترة السماح<small>دقيقة</small></span><input type="number" id="G" value="20"></label>
+  <label class="f"><span>حد الخصم بالساعة<small>بعد كم دقيقة تُحسب ساعة</small></span><input type="number" id="T" value="45"></label>
+  <label class="f"><span>مبلغ ثابت للتأخير القصير<small>جنيه</small></span><input type="number" id="S" value="10"></label>
+  <label class="f"><span>حد خصم يوم كامل<small>دقيقة</small></span><input type="number" id="X" value="120"></label>
+  <label class="f"><span>سعر ساعة الإضافي<small>جنيه/ساعة</small></span><input type="number" id="R" value="30"></label>
+  <label class="f"><span>أقل مدة إضافي<small>دقيقة</small></span><input type="number" id="M" value="30"></label>
+  <h3>2) طريقة التأخير الافتراضية</h3>
+  <select id="dl"><option value="min">بالدقيقة (بعد السماح)</option><option value="hr">بالساعة</option><option value="day">يوم كامل</option><option value="none">بدون</option></select>
+  <h3>3) طريقة الإضافي الافتراضية</h3>
+  <select id="db"><option value="hr">بالساعة</option><option value="none">بدون</option></select>
+ </div>
+ <div class="dr-foot"><button class="btn" onclick="dr(0)">حفظ</button><button class="btn ghost" onclick="reset()">إعادة ضبط التعديلات اليدوية</button></div>
+</div>
+<script>
+const D=[[1,'p',10,5,22,0],[2,'p',10,32,22,5],[3,'p',10,0,22,0],[4,'rest'],[5,'p',10,62,22,0],[6,'p',10,0,23,40],[7,'abs'],[8,'p',10,0,22,0],[9,'p',10,25,21,0],[10,'p',10,0,22,3],[11,'p',10,140,22,0],[12,'rest'],[13,'p',10,0,22,0],[14,'p',10,12,22,0]];
+// [day,type,inHour,lateMin,outHour,otMin]
+const $=i=>document.getElementById(i),v=i=>+$(i).value;let ov={};
+function dr(o){$('dr').classList.toggle('open',!!o);$('bg').classList.toggle('open',!!o)}
+function reset(){ov={};draw()}
+function lateAmt(m,k){const w=v('salary')/30,eff=m-v('G');if(eff<=0||k=='none')return 0;
+ if(k=='min')return Math.round(eff*v('H')/60);
+ if(k=='hr')return eff<=v('T')?v('S'):Math.ceil(m/60)*v('H');
+ if(k=='day')return m>=v('X')?Math.round(w):0;return 0}
+function otAmt(m,k){return k=='none'||m<v('M')?0:Math.round(m/60*v('R'))}
+const LN={min:'بالدقيقة',hr:'بالساعة',day:'يوم كامل',none:'بدون'},BN={hr:'بالساعة',none:'بدون'};
+function draw(){let ded=0,bon=0,absd=0,late=0,abs=0,ot=0;const w=v('salary')/30;
+ $('tb').innerHTML=D.map(d=>{const [n,t,h,l,oh,om]=d;
+  if(t=='rest')return `<tr class="rest"><td>${n}/11</td><td>إجازة أسبوعية</td><td colspan="8">—</td><td class="last">0</td></tr>`;
+  if(t=='abs'){absd+=w;abs++;return `<tr class="abs"><td>${n}/11</td><td><span class="chip c-bad">غياب</span></td><td colspan="8">لا يوجد حضور</td><td class="last neg">-${Math.round(w)}</td></tr>`}
+  const o=ov[n]||{},lk=o.l||$('dl').value,bk=o.b||$('db').value,ld=lateAmt(l,lk),bd=otAmt(om,bk);
+  ded+=ld;bon+=bd;if(l>v('G'))late++;if(om>=v('M'))ot++;
+  const st=l>v('G')?'<span class="chip c-warn">تأخير</span>':om>=v('M')?'<span class="chip c-ok">إضافي</span>':'<span class="chip c-ok">حاضر</span>';
+  const lo=(l+h*60),ci=`${String(h+Math.floor((lo-h*60)/60)).padStart(2,'0')}:${String(l%60).padStart(2,'0')}`;
+  return `<tr><td>${n}/11</td><td>${st}</td><td>${ci}</td><td>${oh%24}:${String(om%60).padStart(2,'0')}</td><td>${l>v('G')?l:0}</td><td>${om}</td>
+  <td><select onchange="ov[${n}]={...ov[${n}],l:this.value};draw()">${Object.entries(LN).map(([k,x])=>`<option value="${k}" ${k==lk?'selected':''}>${x}</option>`).join('')}</select></td><td class="neg">-${ld}</td>
+  <td><select onchange="ov[${n}]={...ov[${n}],b:this.value};draw()">${Object.entries(BN).map(([k,x])=>`<option value="${k}" ${k==bk?'selected':''}>${x}</option>`).join('')}</select></td><td class="pos">+${bd}</td><td class="last">${bd-ld}</td></tr>`}).join('');
+ const net=Math.round(v('salary')-ded-absd+bon);
+ $('net').textContent=$('net2').textContent=net.toLocaleString();$('base').textContent=v('salary');$('wage').textContent=Math.round(w);
+ $('ded').textContent='-'+Math.round(ded);$('absd').textContent='-'+Math.round(absd);$('bon').textContent='+'+Math.round(bon);
+ $('chips').innerHTML=`<span class="chip c-warn">${late} أيام تأخير</span><span class="chip c-bad">${abs} غياب</span><span class="chip c-ok">${ot} أيام إضافي</span><span class="chip c-rest">2 إجازة</span>`;
+ $('ruleTxt').textContent=`التأخير: ${LN[$('dl').value]} · سماح ${v('G')} د · سعر الساعة ${v('H')} · الإضافي ${v('R')}/ساعة · ${Object.keys(ov).length} يوم معدّل يدوياً`}
+document.querySelectorAll('#dr input,#dr select').forEach(e=>e.oninput=draw);draw();
+</script></body></html>

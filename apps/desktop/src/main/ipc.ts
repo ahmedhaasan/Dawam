@@ -136,6 +136,20 @@ export const createIpcRouter = (services: IpcServices): IpcRouter => ({
           }));
         return ok(rows);
       }
+      case IPC_CHANNELS.resetAudit: {
+        const authorized = services.auth.authorize('audit.read');
+        if (!authorized.ok) return authorized;
+        const input = parsed.data as { reason: string; confirmation: 'RESET' };
+        const result = services.audit.reset({
+          actorUserId: authorized.value.id,
+          reason: input.reason,
+        });
+        return ok({ deletedCount: result.deletedCount });
+      }
+      case IPC_CHANNELS.resetAppData: {
+        const input = parsed.data as { confirmation: string };
+        return services.settings.resetAppData(input.confirmation);
+      }
       case IPC_CHANNELS.chooseBackupFolder: {
         const authorized = services.auth.authorize('backup.manage');
         return authorized.ok ? ok(await services.dialogs.chooseBackupFolder()) : authorized;
@@ -178,9 +192,17 @@ export const createIpcRouter = (services: IpcServices): IpcRouter => ({
         return services.workforce.updateEmployee(id, employee);
       }
       case IPC_CHANNELS.deleteEmployee: {
-        const input = parsed.data as { employeeId: number; reason: string };
-        return services.workforce.deleteEmployee(input.employeeId, input.reason);
+        const input = parsed.data as { employeeId: number; reason: string; confirmation: string };
+        return services.workforce.deleteEmployee(
+          input.employeeId,
+          input.reason,
+          input.confirmation,
+        );
       }
+      case IPC_CHANNELS.employeePurgePreview:
+        return services.workforce.employeePurgePreview(
+          (parsed.data as { employeeId: number }).employeeId,
+        );
       case IPC_CHANNELS.listShiftTemplates:
         return services.workforce.listTemplates();
       case IPC_CHANNELS.createShiftTemplate:
@@ -228,6 +250,10 @@ export const createIpcRouter = (services: IpcServices): IpcRouter => ({
         return services.imports.resolveQuarantined(
           parsed.data as Parameters<ImportService['resolveQuarantined']>[0],
         );
+      case IPC_CHANNELS.ignoreQuarantinedDeviceId:
+        return services.imports.ignoreDeviceId(
+          parsed.data as Parameters<ImportService['ignoreDeviceId']>[0],
+        );
       case IPC_CHANNELS.getAttendanceMonth: {
         const input = parsed.data as { employeeId: number; month: string };
         return services.attendance.month(input.employeeId, input.month);
@@ -247,13 +273,17 @@ export const createIpcRouter = (services: IpcServices): IpcRouter => ({
           employeeId: number;
           month: string;
           policyId: number;
-          lateRoundingByDate?: Readonly<Record<string, 'exact' | 'hour_up'>>;
+          deductionByDate?: Readonly<Record<string, 'none' | 'exact' | 'hour_up' | 'full_day'>>;
+          dateDecisions?: Parameters<PayrollService['preview']>[4];
+          salaryOverrideMinor?: number;
         };
         return services.payroll.preview(
           input.employeeId,
           input.month,
           input.policyId,
-          input.lateRoundingByDate,
+          input.deductionByDate,
+          input.dateDecisions,
+          input.salaryOverrideMinor,
         );
       }
       case IPC_CHANNELS.approvePayroll:

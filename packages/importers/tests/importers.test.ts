@@ -1,6 +1,9 @@
+import { existsSync, readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+
 import { describe, expect, it } from 'vitest';
 
-import { parseAttendanceFile } from '../src/index.js';
+import { parseAttendanceFile, summarizePunches } from '../src/index.js';
 
 const bytes = (value: string): Uint8Array => new TextEncoder().encode(value);
 
@@ -121,5 +124,87 @@ describe('attendance import parsers', () => {
     expect(parseAttendanceFile(bytes('not attendance data'))).toMatchObject({
       error: { code: 'UNKNOWN_FORMAT' },
     });
+  });
+
+  it('summarizes padded-ID CRLF files per device ID with duplicates and 300 s repeats', () => {
+    const parsed = parseAttendanceFile(
+      bytes(
+        '        3\t2026-11-08 08:00:00\t1\t0\t1\t0\r\n' +
+          '        3\t2026-11-08 08:00:00\t1\t0\t1\t0\r\n' +
+          '\t 3\t2026-11-08 08:05:00\t1\t0\t1\t0 \r\n' +
+          '        3\t2026-11-08 08:10:01\t1\t0\t1\t0\r\n' +
+          '        03\t2026-11-10 17:00:00\t1\t0\t1\t0\r\n' +
+          '        7\tnot-a-date\t1\t0\t1\t0\r\n',
+      ),
+    );
+    expect(parsed.ok).toBe(true);
+    if (!parsed.ok) return;
+    expect(parsed.value.malformed).toEqual([
+      expect.objectContaining({ lineNo: 6, reason: 'INVALID_TIMESTAMP' }),
+    ]);
+    expect(summarizePunches(parsed.value.punches)).toEqual({
+      rowsValid: 5,
+      exactDuplicates: 1,
+      repeatedScans: 1,
+      minLocal: '2026-11-08 08:00:00',
+      maxLocal: '2026-11-10 17:00:00',
+      daysCovered: 3,
+      daysWithPunches: 2,
+      byDeviceId: [
+        {
+          deviceUserId: '3',
+          punchCount: 4,
+          daysWithPunches: 1,
+          firstLocal: '2026-11-08 08:00:00',
+          lastLocal: '2026-11-08 08:10:01',
+          exactDuplicates: 1,
+          repeatedScans: 1,
+        },
+        expect.objectContaining({ deviceUserId: '03', punchCount: 1 }),
+      ],
+    });
+  });
+});
+
+const repoFile = (relative: string): string =>
+  fileURLToPath(new URL(`../../../${relative}`, import.meta.url));
+// Private real export: read in place only, never copied into the repository.
+const realExport = repoFile('test data /1_attlog (1).dat');
+
+const reportFor = (path: string) => {
+  const parsed = parseAttendanceFile(readFileSync(path));
+  if (!parsed.ok) throw new Error(parsed.error.code);
+  const report = summarizePunches(parsed.value.punches);
+  if (process.env.DAWAM_PRINT_IMPORT_REPORT) {
+    console.log(JSON.stringify({ malformed: parsed.value.malformed.length, ...report }, null, 1));
+  }
+  return { parsed: parsed.value, report };
+};
+
+const countsById = (report: ReturnType<typeof summarizePunches>): Record<string, number> =>
+  Object.fromEntries(report.byDeviceId.map((row) => [row.deviceUserId, row.punchCount]));
+
+describe('attendance export files', () => {
+  it('reads the synthetic November 2026 export for IDs 2-6 only', () => {
+    const { parsed, report } = reportFor(
+      repoFile('tests/fixtures/synthetic/attlog_november_2026_test.dat'),
+    );
+    expect(parsed.format).toBe('ZK_USB_6_COLUMN');
+    expect(parsed.malformed).toEqual([]);
+    expect(report.rowsValid).toBe(430);
+    expect(report.byDeviceId.map((row) => row.deviceUserId).sort()).toEqual([
+      '2',
+      '3',
+      '4',
+      '5',
+      '6',
+    ]);
+  });
+
+  it.skipIf(!existsSync(realExport))('reads the local real eFace 10 export when present', () => {
+    const { parsed, report } = reportFor(realExport);
+    expect(parsed.malformed).toEqual([]);
+    expect(report.rowsValid).toBe(91);
+    expect(countsById(report)).toEqual({ 1: 5, 2: 11, 3: 19, 4: 20, 5: 19, 6: 5, 7: 12 });
   });
 });

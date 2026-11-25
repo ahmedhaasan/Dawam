@@ -111,9 +111,13 @@ export const buildShiftWindow = (
   if (!inFrom.ok) return inFrom;
   const inTo = localAtOffset(date, template.inToMin);
   if (!inTo.ok) return inTo;
-  const outFrom = localAtOffset(date, template.outFromMin);
+  const checkoutOpenBeforeEndMin = template.checkoutOpenBeforeEndMin ?? 10;
+  const outFrom = localAtOffset(date, template.endMin - checkoutOpenBeforeEndMin);
   if (!outFrom.ok) return outFrom;
-  const outTo = localAtOffset(date, template.outToMin);
+  const outTo = localAtOffset(
+    date,
+    template.outToMin ?? template.endMin + (template.otCapMin ?? 480),
+  );
   if (!outTo.ok) return outTo;
 
   return {

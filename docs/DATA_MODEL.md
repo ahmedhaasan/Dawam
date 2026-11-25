@@ -24,8 +24,13 @@ CREATE TABLE shift_templates(
   id INTEGER PRIMARY KEY, name TEXT NOT NULL, active INTEGER NOT NULL DEFAULT 1,
   start_min INTEGER NOT NULL, end_min INTEGER NOT NULL,          -- minutes from midnight of start date
   in_from_min INTEGER NOT NULL, in_to_min INTEGER NOT NULL,
-  out_from_min INTEGER NOT NULL, out_to_min INTEGER NOT NULL,
-  CHECK(end_min>start_min AND in_from_min<=in_to_min AND out_from_min<=out_to_min));
+  out_from_min INTEGER NOT NULL, out_to_min INTEGER,
+  late_grace_min INTEGER NOT NULL DEFAULT 0,
+  checkout_open_before_end_min INTEGER NOT NULL DEFAULT 10,
+  ot_cap_min INTEGER NOT NULL DEFAULT 480,
+  CHECK(end_min>start_min AND in_from_min<=in_to_min),
+  CHECK(out_to_min IS NULL OR out_from_min<=out_to_min),
+  CHECK(late_grace_min>=0 AND checkout_open_before_end_min>=0 AND ot_cap_min>=0));
 
 CREATE TABLE shift_assignments(
   id INTEGER PRIMARY KEY, employee_id INTEGER NOT NULL REFERENCES employees(id),
@@ -104,3 +109,4 @@ Notes
 - Derived data (daily results, month summaries) is computed, not stored, except inside `payroll_runs` snapshots.
 - Backfill/migration of `device_serial`: use `''` when unknown so UNIQUE works.
 - Template window overlap, assignment overlap, and pair conflicts are validated in services with tests.
+- Migration `0007_attendance_rules_v2.sql` rebuilds `shift_templates` because SQLite cannot relax `out_to_min` in place. It copies every existing row, preserves IDs/references, initializes grace to 0, checkout-open-before-end to 10, and overtime cap to 480. It is forward-only and data-preserving.

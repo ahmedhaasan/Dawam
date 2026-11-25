@@ -12,7 +12,7 @@
 Time: DST start/end nights, overnight crossing month and year, seconds truncation, ambiguous local time flagged.
 Schedule: precedence order; weekly rest; override beats coverage; coverage merge windows; both off; pair validity range; no recursion.
 Matching: first IN / last OUT; punch reuse prevented; outside window → REVIEW; manual correction overrides; OUT-before-IN ignored.
-Status: each status in DOMAIN_RULES §4, including partial import and not-closed shift, empty file ⇒ no ABSENT.
+Status: each status in DOMAIN_RULES §4, including partial import and not-closed shift, complete pair before OUT-zone end ⇒ PRESENT, empty file ⇒ no ABSENT.
 Payroll: 0/1/30/59/60/61 per policy; grace both modes; cap on/off; two dates × 30 min; tiers (overlap rejected); basis days ≠ 30; hourly basis variants; absence separate; net negative warning; rounding half-up edge (x.5).
 
 ## 3. Acceptance scenarios (end-to-end, synthetic data)
@@ -29,6 +29,10 @@ S9 Month-end overnight shift with next-month export missing → PENDING_IMPORT.
 S10 Approve payroll then edit policy/schedule → approved run unchanged.
 S11 Non-admin tries payroll/users/backup IPC → denied.
 S12 Backup → delete DB → restore → all data and photos present.
+S13 Select a different payroll employee/month → day rows and summary load without pressing Recalculate; edit opens directly below the selected date.
+S14 Deactivate employee, type the exact device ID, and purge → every employee-owned record is gone; re-import surfaces that device ID as new/unmatched.
+S15 Reset audit with wrong confirmation → rejected; correct confirmation + reason → one valid reset marker begins a new chain.
+S16 Resize the desktop window to 1024×700 in Arabic and English → navigation, forms, import dialog, attendance table, and payroll remain usable without page-level horizontal clipping.
 
 ## 4. Security tests
 

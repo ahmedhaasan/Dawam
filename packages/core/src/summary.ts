@@ -5,6 +5,7 @@ const statuses: readonly AttendanceStatus[] = [
   'LEAVE',
   'PERMISSION',
   'PRESENT',
+  'EARLY_LEAVE',
   'MISSING_IN',
   'MISSING_OUT',
   'ABSENT',
@@ -21,12 +22,26 @@ export const summarizeMonth = (days: readonly AttendanceResult[]): MonthSummary 
     number
   >;
   let totalLateMinutes = 0;
+  let totalWorkedMinutes = 0;
+  let totalOvertimeMinutes = 0;
+  const overtimeDates: MonthSummary['overtimeDates'][number][] = [];
   const missingPunchDates: string[] = [];
   const reviewDates: string[] = [];
 
   for (const day of days) {
     statusCounts[day.status] += 1;
+    totalWorkedMinutes += Math.max(0, Math.round((day.matched?.hours ?? 0) * 60));
     totalLateMinutes += day.matched?.lateMinutes ?? 0;
+    const overtimeMinutes = day.matched?.overtimeMinutes ?? 0;
+    totalOvertimeMinutes += overtimeMinutes;
+    if (overtimeMinutes > 0 && day.matched?.punchOut) {
+      overtimeDates.push({
+        date: day.date,
+        scheduledEnd: day.matched.instance.window.end.raw,
+        actualOut: day.matched.punchOut.local,
+        minutes: overtimeMinutes,
+      });
+    }
     if (day.status === 'MISSING_IN' || day.status === 'MISSING_OUT') {
       missingPunchDates.push(day.date);
     }
@@ -34,7 +49,10 @@ export const summarizeMonth = (days: readonly AttendanceResult[]): MonthSummary 
   }
 
   return {
+    totalWorkedMinutes,
     totalLateMinutes,
+    totalOvertimeMinutes,
+    overtimeDates,
     statusCounts,
     missingPunchDates,
     reviewDates,

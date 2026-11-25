@@ -20,6 +20,8 @@ export const IPC_CHANNELS = {
   setIdleLockMinutes: 'settings:set-idle-lock-minutes',
   verifyAudit: 'audit:verify',
   listAudit: 'audit:list',
+  resetAudit: 'audit:reset',
+  resetAppData: 'settings:reset-app-data',
   chooseBackupFolder: 'backup:choose-folder',
   chooseBackupFile: 'backup:choose-file',
   createBackup: 'backup:create',
@@ -31,6 +33,7 @@ export const IPC_CHANNELS = {
   createEmployee: 'workforce:employees:create',
   updateEmployee: 'workforce:employees:update',
   deleteEmployee: 'workforce:employees:delete',
+  employeePurgePreview: 'workforce:employees:purge-preview',
   listShiftTemplates: 'workforce:templates:list',
   createShiftTemplate: 'workforce:templates:create',
   updateShiftTemplate: 'workforce:templates:update',
@@ -44,6 +47,7 @@ export const IPC_CHANNELS = {
   commitAttendanceImport: 'imports:commit',
   listQuarantinedPunches: 'imports:quarantine:list',
   resolveQuarantinedPunch: 'imports:quarantine:resolve',
+  ignoreQuarantinedDeviceId: 'imports:quarantine:ignore-device',
   getAttendanceMonth: 'attendance:month:get',
   setPunchCorrection: 'attendance:correction:set',
   listPayrollPolicies: 'payroll:policies:list',
@@ -90,7 +94,10 @@ const templateInput = z
     inFromMin: z.number().int().min(-1440).max(2879),
     inToMin: z.number().int().min(-1440).max(2879),
     outFromMin: z.number().int().min(0).max(4319),
-    outToMin: z.number().int().min(0).max(4319),
+    outToMin: z.number().int().min(0).max(4319).nullable(),
+    lateGraceMin: z.number().int().min(0).max(720),
+    checkoutOpenBeforeEndMin: z.number().int().min(0).max(720),
+    otCapMin: z.number().int().min(0).max(1440),
     reason,
   })
   .strict();
@@ -134,7 +141,7 @@ const payrollPolicy = z.discriminatedUnion('id', [
     })
     .strict(),
 ]);
-const payrollConfig = z
+const legacyPayrollConfig = z
   .object({
     policy: payrollPolicy,
     options: z
@@ -161,6 +168,64 @@ const payrollConfig = z
       .optional(),
   })
   .strict();
+const payrollLateMethod = z.enum([
+  'none',
+  'minutes',
+  'hours',
+  'full_day_any',
+  'full_day_threshold',
+  'custom_amount',
+]);
+const payrollOvertimeMethod = z.enum(['none', 'fixed_per_hour', 'extra_days', 'custom_amount']);
+const payrollV2Config = z
+  .object({
+    version: z.literal(2),
+    lateRule: z
+      .object({
+        method: payrollLateMethod,
+        hourlyAmountMinor: z.number().int().nonnegative(),
+        hourThresholdMinutes: z.number().int().nonnegative(),
+        shortLatenessAmountMinor: z.number().int().nonnegative(),
+        fullDayThresholdMinutes: z.number().int().nonnegative(),
+        graceMinutes: z.number().int().nonnegative(),
+        capPerDayMinor: z.number().int().nonnegative().nullable(),
+      })
+      .strict(),
+    overtimeRule: z
+      .object({
+        method: payrollOvertimeMethod,
+        amountPerHourMinor: z.number().int().nonnegative(),
+        minimumMinutes: z.number().int().nonnegative(),
+        rounding: z.enum(['exact', 'down_30', 'down_60']),
+        hoursPerExtraDay: z.number().int().positive(),
+      })
+      .strict(),
+    absenceMultiplier: z
+      .object({
+        numerator: z.number().int().nonnegative(),
+        denominator: z.number().int().positive(),
+      })
+      .strict(),
+  })
+  .strict();
+const payrollConfig = z.union([legacyPayrollConfig, payrollV2Config]);
+const payrollTreatment = z.enum(['none', 'exact', 'hour_up', 'full_day']);
+const payrollDateDecisions = z.record(
+  localDate,
+  z
+    .object({
+      included: z.boolean().optional(),
+      lateMethod: payrollLateMethod.optional(),
+      overtimeMethod: payrollOvertimeMethod.optional(),
+      lateCustomAmountMinor: z.number().int().nonnegative().optional(),
+      overtimeCustomAmountMinor: z.number().int().nonnegative().optional(),
+      lateReason: z.string().trim().max(500).optional(),
+      overtimeReason: z.string().trim().max(500).optional(),
+      customAmountMinor: z.number().int().nonnegative().optional(),
+      reason: z.string().trim().max(500).optional(),
+    })
+    .strict(),
+);
 
 export const ipcSchemas = {
   [IPC_CHANNELS.bootstrapState]: z.unknown(),
@@ -203,7 +268,9 @@ export const ipcSchemas = {
       minutes: z.union([z.literal(0), z.literal(5), z.literal(15), z.literal(30), z.literal(60)]),
     })
     .strict(),
+  [IPC_CHANNELS.resetAppData]: z.object({ confirmation: z.literal('RESET') }).strict(),
   [IPC_CHANNELS.verifyAudit]: z.unknown(),
+  [IPC_CHANNELS.resetAudit]: z.object({ reason, confirmation: z.literal('RESET') }).strict(),
   [IPC_CHANNELS.listAudit]: z
     .object({
       entity: z.string().trim().max(100).optional(),
@@ -234,7 +301,10 @@ export const ipcSchemas = {
     .strict(),
   [IPC_CHANNELS.createEmployee]: employeeInput,
   [IPC_CHANNELS.updateEmployee]: employeeInput.extend({ id }).strict(),
-  [IPC_CHANNELS.deleteEmployee]: z.object({ employeeId: id, reason }).strict(),
+  [IPC_CHANNELS.deleteEmployee]: z
+    .object({ employeeId: id, reason, confirmation: z.string().trim().min(1).max(100) })
+    .strict(),
+  [IPC_CHANNELS.employeePurgePreview]: z.object({ employeeId: id }).strict(),
   [IPC_CHANNELS.listShiftTemplates]: z.unknown(),
   [IPC_CHANNELS.createShiftTemplate]: templateInput,
   [IPC_CHANNELS.updateShiftTemplate]: templateInput.extend({ id }).strict(),
@@ -296,6 +366,7 @@ export const ipcSchemas = {
   [IPC_CHANNELS.resolveQuarantinedPunch]: z
     .object({ quarantineId: id, employeeId: id, reason })
     .strict(),
+  [IPC_CHANNELS.ignoreQuarantinedDeviceId]: z.object({ quarantineId: id, reason }).strict(),
   [IPC_CHANNELS.getAttendanceMonth]: z
     .object({ employeeId: id, month: z.string().regex(/^\d{4}-\d{2}$/) })
     .strict(),
@@ -317,7 +388,9 @@ export const ipcSchemas = {
       employeeId: id,
       month: z.string().regex(/^\d{4}-\d{2}$/),
       policyId: id,
-      lateRoundingByDate: z.record(localDate, z.enum(['exact', 'hour_up'])).optional(),
+      deductionByDate: z.record(localDate, payrollTreatment).optional(),
+      dateDecisions: payrollDateDecisions.optional(),
+      salaryOverrideMinor: z.number().int().nonnegative().optional(),
     })
     .strict(),
   [IPC_CHANNELS.approvePayroll]: z
@@ -325,7 +398,9 @@ export const ipcSchemas = {
       employeeId: id,
       month: z.string().regex(/^\d{4}-\d{2}$/),
       policyId: id,
-      lateRoundingByDate: z.record(localDate, z.enum(['exact', 'hour_up'])).optional(),
+      deductionByDate: z.record(localDate, payrollTreatment).optional(),
+      dateDecisions: payrollDateDecisions.optional(),
+      salaryOverrideMinor: z.number().int().nonnegative().optional(),
       reason,
     })
     .strict(),
@@ -370,6 +445,19 @@ export interface BackupInfoDto {
   counts: Readonly<Record<string, number>>;
 }
 
+export interface EmployeePurgeCountsDto {
+  punches: number;
+  quarantined: number;
+  assignments: number;
+  weeklyRest: number;
+  overrides: number;
+  pairs: number;
+  leaves: number;
+  corrections: number;
+  payrollRuns: number;
+  ignoredDeviceIds: number;
+}
+
 export interface EmployeeDto {
   id: number;
   fullName: string;
@@ -401,7 +489,10 @@ export interface ShiftTemplateDto {
   inFromMin: number;
   inToMin: number;
   outFromMin: number;
-  outToMin: number;
+  outToMin: number | null;
+  lateGraceMin: number;
+  checkoutOpenBeforeEndMin: number;
+  otCapMin: number;
 }
 
 export interface CalendarDayDto {
@@ -423,6 +514,7 @@ export interface ImportPreviewDto {
   predictedNew: number;
   predictedDuplicate: number;
   predictedQuarantined: number;
+  predictedIgnored: number;
   minLocal?: string;
   maxLocal?: string;
   sample: readonly {
@@ -432,6 +524,36 @@ export interface ImportPreviewDto {
     lineNo: number;
   }[];
   malformed: readonly { lineNo: number; rawLine: string; reason: string }[];
+  report: ImportReportDto;
+}
+
+export interface ImportReportRowDto {
+  deviceUserId: string;
+  status: 'KNOWN' | 'UNKNOWN' | 'IGNORED';
+  employeeId?: number;
+  employeeName?: string;
+  punchCount: number;
+  daysWithPunches: number;
+  firstLocal: string;
+  lastLocal: string;
+  exactDuplicates: number;
+  repeatedScans: number;
+  punchesToReplace: number;
+}
+
+export interface ImportReportDto {
+  rowsValid: number;
+  rowsMalformed: number;
+  malformed: readonly { lineNo: number; rawLine: string; reason: string }[];
+  exactDuplicates: number;
+  repeatedScans: number;
+  minLocal?: string;
+  maxLocal?: string;
+  daysCovered: number;
+  daysWithPunches: number;
+  unknownDeviceIds: readonly { deviceUserId: string; punchCount: number }[];
+  punchesToReplace: number;
+  byDeviceId: readonly ImportReportRowDto[];
 }
 
 export interface ImportCommitSummaryDto {
@@ -440,7 +562,10 @@ export interface ImportCommitSummaryDto {
   rowsNew: number;
   rowsDuplicate: number;
   rowsQuarantined: number;
+  rowsIgnored: number;
   rowsMalformed: number;
+  rowsReplaced: number;
+  report: ImportReportDto;
 }
 
 export interface QuarantinedPunchDto {
@@ -459,8 +584,13 @@ export interface AttendanceDayDto {
   hours: number | null;
   lateMinutes: number | null;
   earlyLeaveMinutes: number | null;
+  overtimeMinutes: number | null;
+  scheduledStart?: string;
+  scheduledEnd?: string;
   scheduledMinutes: number | null;
   flags: readonly string[];
+  corrected: boolean;
+  correctionReasons: readonly string[];
 }
 
 export interface AttendanceMonthDto {
@@ -468,7 +598,16 @@ export interface AttendanceMonthDto {
   month: string;
   days: readonly AttendanceDayDto[];
   summary: {
+    totalWorkedMinutes: number;
     totalLateMinutes: number;
+    totalOvertimeMinutes: number;
+    overtimeDates: readonly {
+      date: string;
+      scheduledEnd: string;
+      actualOut: string;
+      minutes: number;
+    }[];
+    ignoredRepeatedPunches: readonly { id: string; punchedAtLocal: string }[];
     statusCounts: Readonly<Record<string, number>>;
     missingPunchDates: readonly string[];
     reviewDates: readonly string[];
@@ -488,13 +627,25 @@ export interface PayrollPolicyDto {
 export interface PayrollDateResultDto {
   date: string;
   status: string;
-  actualLateMinutes: number;
-  billableLateMinutes: number;
-  billableUnits: number;
-  rule: string;
-  amountBeforeCapMinor: number;
-  amountMinor: number;
-  capApplied: boolean;
+  actualLateMinutes?: number;
+  lateMinutes?: number;
+  billableLateMinutes?: number;
+  billableUnits?: number;
+  treatment?: 'automatic' | 'none' | 'exact' | 'hour_up' | 'full_day';
+  rule?: string;
+  amountBeforeCapMinor?: number;
+  amountMinor?: number;
+  capApplied?: boolean;
+  overtimeMinutes?: number;
+  countedOvertimeMinutes?: number;
+  included?: boolean;
+  method?: string;
+  overtimeMethod?: string;
+  deductionMinor?: number;
+  bonusMinor?: number;
+  absenceMinor?: number;
+  edited?: boolean;
+  reason?: string | null;
 }
 
 export interface PayrollResultDto {
@@ -503,10 +654,16 @@ export interface PayrollResultDto {
   totalLateMinutes: number;
   latenessDeductionMinor: number;
   absenceDays: number;
+  chargedAbsenceDays?: number;
   absenceDeductionMinor: number;
-  otherApprovedItemsMinor: number;
-  totalDeductionsMinor: number;
-  netPayMinor: number;
+  otherApprovedItemsMinor?: number;
+  totalDeductionsMinor?: number;
+  netPayMinor?: number;
+  presentDays?: number;
+  totalOvertimeMinutes?: number;
+  countedOvertimeMinutes?: number;
+  overtimeBonusMinor?: number;
+  finalSalaryMinor?: number;
   warnings: readonly string[];
   dates: readonly PayrollDateResultDto[];
 }
@@ -572,6 +729,7 @@ export interface DawamDesktopApi {
     setLanguage(language: 'ar' | 'en'): Promise<IpcResult<'ar' | 'en'>>;
     getIdleLockMinutes(): Promise<IpcResult<number>>;
     setIdleLockMinutes(minutes: 0 | 5 | 15 | 30 | 60): Promise<IpcResult<number>>;
+    resetAppData(input: { confirmation: 'RESET' }): Promise<IpcResult<{ clearedTables: number }>>;
   };
   audit: {
     verify(): Promise<IpcResult<{ valid: boolean; brokenAtId?: number }>>;
@@ -580,6 +738,10 @@ export interface DawamDesktopApi {
       action?: string;
       limit: number;
     }): Promise<IpcResult<readonly AuditDto[]>>;
+    reset(input: {
+      reason: string;
+      confirmation: 'RESET';
+    }): Promise<IpcResult<{ deletedCount: number }>>;
   };
   backup: {
     chooseFolder(): Promise<IpcResult<string | null>>;
@@ -600,6 +762,9 @@ export interface DawamDesktopApi {
     listQuarantined(): Promise<IpcResult<readonly QuarantinedPunchDto[]>>;
     resolveQuarantined(
       input: z.infer<(typeof ipcSchemas)[typeof IPC_CHANNELS.resolveQuarantinedPunch]>,
+    ): Promise<IpcResult<true>>;
+    ignoreDeviceId(
+      input: z.infer<(typeof ipcSchemas)[typeof IPC_CHANNELS.ignoreQuarantinedDeviceId]>,
     ): Promise<IpcResult<true>>;
   };
   attendance: {
@@ -645,6 +810,7 @@ export interface DawamDesktopApi {
     deleteEmployee(
       input: z.infer<(typeof ipcSchemas)[typeof IPC_CHANNELS.deleteEmployee]>,
     ): Promise<IpcResult<true>>;
+    employeePurgePreview(input: { employeeId: number }): Promise<IpcResult<EmployeePurgeCountsDto>>;
     listTemplates(): Promise<IpcResult<readonly ShiftTemplateDto[]>>;
     createTemplate(input: z.infer<typeof templateInput>): Promise<IpcResult<ShiftTemplateDto>>;
     updateTemplate(

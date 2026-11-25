@@ -20,7 +20,10 @@ export interface ShiftTemplateRecord {
   inFromMin: number;
   inToMin: number;
   outFromMin: number;
-  outToMin: number;
+  outToMin: number | null;
+  lateGraceMin: number;
+  checkoutOpenBeforeEndMin: number;
+  otCapMin: number;
 }
 
 export interface AssignmentRecord {
@@ -69,6 +72,19 @@ export interface LeaveRecord {
   createdAt: string;
 }
 
+export interface EmployeePurgeCounts {
+  punches: number;
+  quarantined: number;
+  assignments: number;
+  weeklyRest: number;
+  overrides: number;
+  pairs: number;
+  leaves: number;
+  corrections: number;
+  payrollRuns: number;
+  ignoredDeviceIds: number;
+}
+
 const employee = (row: Record<string, unknown>): EmployeeRecord => ({
   id: Number(row.id),
   fullName: String(row.full_name),
@@ -89,7 +105,10 @@ const template = (row: Record<string, unknown>): ShiftTemplateRecord => ({
   inFromMin: Number(row.in_from_min),
   inToMin: Number(row.in_to_min),
   outFromMin: Number(row.out_from_min),
-  outToMin: Number(row.out_to_min),
+  outToMin: row.out_to_min === null ? null : Number(row.out_to_min),
+  lateGraceMin: Number(row.late_grace_min),
+  checkoutOpenBeforeEndMin: Number(row.checkout_open_before_end_min),
+  otCapMin: Number(row.ot_cap_min),
 });
 
 const assignment = (row: Record<string, unknown>): AssignmentRecord => ({
@@ -192,32 +211,53 @@ export class WorkforceRepository {
     return this.findEmployee(id)!;
   }
 
-  hasEmployeeHistory(id: number, deviceUserId: string): boolean {
-    const checks: ReadonlyArray<{ sql: string; params: readonly (number | string)[] }> = [
-      { sql: 'SELECT 1 FROM leaves WHERE employee_id=? LIMIT 1', params: [id] },
-      {
-        sql: 'SELECT 1 FROM quarantined_punches WHERE resolved_employee_id=? LIMIT 1',
-        params: [id],
-      },
-      { sql: 'SELECT 1 FROM punch_corrections WHERE employee_id=? LIMIT 1', params: [id] },
-      { sql: 'SELECT 1 FROM payroll_runs WHERE employee_id=? LIMIT 1', params: [id] },
-      {
-        sql: 'SELECT 1 FROM raw_punches WHERE device_user_id=? LIMIT 1',
-        params: [deviceUserId],
-      },
-    ];
-    return checks.some(({ sql, params }) =>
-      Boolean(this.database.connection.prepare(sql).get(...params)),
-    );
+  countEmployeeData(id: number, deviceUserId: string): EmployeePurgeCounts {
+    const count = (sql: string, ...params: Array<string | number>): number =>
+      Number((this.database.connection.prepare(sql).get(...params) as { count: number }).count);
+    return {
+      punches: count('SELECT COUNT(*) count FROM raw_punches WHERE device_user_id=?', deviceUserId),
+      quarantined: count(
+        'SELECT COUNT(*) count FROM quarantined_punches WHERE device_user_id=? OR resolved_employee_id=?',
+        deviceUserId,
+        id,
+      ),
+      assignments: count('SELECT COUNT(*) count FROM shift_assignments WHERE employee_id=?', id),
+      weeklyRest: count('SELECT COUNT(*) count FROM weekly_rest WHERE employee_id=?', id),
+      overrides: count('SELECT COUNT(*) count FROM schedule_overrides WHERE employee_id=?', id),
+      pairs: count(
+        'SELECT COUNT(*) count FROM teammate_pairs WHERE employee_a=? OR employee_b=?',
+        id,
+        id,
+      ),
+      leaves: count('SELECT COUNT(*) count FROM leaves WHERE employee_id=?', id),
+      corrections: count('SELECT COUNT(*) count FROM punch_corrections WHERE employee_id=?', id),
+      payrollRuns: count('SELECT COUNT(*) count FROM payroll_runs WHERE employee_id=?', id),
+      ignoredDeviceIds: count(
+        'SELECT COUNT(*) count FROM ignored_device_ids WHERE device_user_id=?',
+        deviceUserId,
+      ),
+    };
   }
 
-  deleteEmployee(id: number): void {
+  purgeEmployee(id: number, deviceUserId: string): void {
     this.database.connection
       .prepare('DELETE FROM teammate_pairs WHERE employee_a=? OR employee_b=?')
       .run(id, id);
     this.database.connection.prepare('DELETE FROM schedule_overrides WHERE employee_id=?').run(id);
     this.database.connection.prepare('DELETE FROM weekly_rest WHERE employee_id=?').run(id);
     this.database.connection.prepare('DELETE FROM shift_assignments WHERE employee_id=?').run(id);
+    this.database.connection.prepare('DELETE FROM leaves WHERE employee_id=?').run(id);
+    this.database.connection.prepare('DELETE FROM punch_corrections WHERE employee_id=?').run(id);
+    this.database.connection.prepare('DELETE FROM payroll_runs WHERE employee_id=?').run(id);
+    this.database.connection
+      .prepare('DELETE FROM quarantined_punches WHERE device_user_id=? OR resolved_employee_id=?')
+      .run(deviceUserId, id);
+    this.database.connection
+      .prepare('DELETE FROM raw_punches WHERE device_user_id=?')
+      .run(deviceUserId);
+    this.database.connection
+      .prepare('DELETE FROM ignored_device_ids WHERE device_user_id=?')
+      .run(deviceUserId);
     this.database.connection.prepare('DELETE FROM employees WHERE id=?').run(id);
   }
 
@@ -233,7 +273,7 @@ export class WorkforceRepository {
   insertTemplate(input: Omit<ShiftTemplateRecord, 'id'>): ShiftTemplateRecord {
     const result = this.database.connection
       .prepare(
-        `INSERT INTO shift_templates(name,active,start_min,end_min,in_from_min,in_to_min,out_from_min,out_to_min) VALUES(?,?,?,?,?,?,?,?)`,
+        `INSERT INTO shift_templates(name,active,start_min,end_min,in_from_min,in_to_min,out_from_min,out_to_min,late_grace_min,checkout_open_before_end_min,ot_cap_min) VALUES(?,?,?,?,?,?,?,?,?,?,?)`,
       )
       .run(
         input.name,
@@ -244,13 +284,16 @@ export class WorkforceRepository {
         input.inToMin,
         input.outFromMin,
         input.outToMin,
+        input.lateGraceMin,
+        input.checkoutOpenBeforeEndMin,
+        input.otCapMin,
       );
     return this.findTemplate(Number(result.lastInsertRowid))!;
   }
   updateTemplate(id: number, input: Omit<ShiftTemplateRecord, 'id'>): ShiftTemplateRecord {
     this.database.connection
       .prepare(
-        `UPDATE shift_templates SET name=?,active=?,start_min=?,end_min=?,in_from_min=?,in_to_min=?,out_from_min=?,out_to_min=? WHERE id=?`,
+        `UPDATE shift_templates SET name=?,active=?,start_min=?,end_min=?,in_from_min=?,in_to_min=?,out_from_min=?,out_to_min=?,late_grace_min=?,checkout_open_before_end_min=?,ot_cap_min=? WHERE id=?`,
       )
       .run(
         input.name,
@@ -261,6 +304,9 @@ export class WorkforceRepository {
         input.inToMin,
         input.outFromMin,
         input.outToMin,
+        input.lateGraceMin,
+        input.checkoutOpenBeforeEndMin,
+        input.otCapMin,
         id,
       );
     return this.findTemplate(id)!;

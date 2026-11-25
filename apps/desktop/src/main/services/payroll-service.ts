@@ -1,9 +1,14 @@
 import {
   calculatePayroll,
+  calculatePayrollV2,
   type PayrollInput,
   type PayrollOptions,
   type PayrollPolicy,
   type PayrollResult,
+  type PayrollV2Input,
+  type PayrollV2LateRule,
+  type PayrollV2OvertimeRule,
+  type PayrollV2Result,
 } from '@dawam/core';
 import {
   AuditRepository,
@@ -18,9 +23,31 @@ import type { AuthService } from './auth-service.js';
 import type { AttendanceService } from './attendance-service.js';
 import type { ServiceResult } from './service-result.js';
 
-export interface PayrollPolicyConfig {
+export interface LegacyPayrollPolicyConfig {
   policy: PayrollPolicy;
   options?: PayrollOptions;
+}
+
+export interface PayrollV2PolicyConfig {
+  version: 2;
+  lateRule: PayrollV2LateRule;
+  overtimeRule: PayrollV2OvertimeRule;
+  absenceMultiplier: { numerator: number; denominator: number };
+}
+
+export type PayrollPolicyConfig = LegacyPayrollPolicyConfig | PayrollV2PolicyConfig;
+
+export interface PayrollDateDecision {
+  included?: boolean;
+  lateMethod?: PayrollV2LateRule['method'];
+  overtimeMethod?: PayrollV2OvertimeRule['method'];
+  lateCustomAmountMinor?: number;
+  overtimeCustomAmountMinor?: number;
+  lateReason?: string;
+  overtimeReason?: string;
+  /** Backward-compatible field used by previously saved renderer state. */
+  customAmountMinor?: number;
+  reason?: string;
 }
 
 export interface PayrollPolicyView {
@@ -35,8 +62,8 @@ export interface PayrollPreviewView {
   employee: { id: number; fullName: string; deviceUserId: string };
   month: string;
   policy: PayrollPolicyView;
-  input: PayrollInput;
-  result: PayrollResult;
+  input: PayrollInput | PayrollV2Input;
+  result: PayrollResult | PayrollV2Result;
 }
 
 export interface PayrollRunView {
@@ -46,7 +73,7 @@ export interface PayrollRunView {
   policyId: number;
   policySnapshot: unknown;
   inputsSnapshot: unknown;
-  result: PayrollResult;
+  result: PayrollResult | PayrollV2Result;
   status: 'approved' | 'void';
   approvedBy: number;
   approvedAt: string;
@@ -110,13 +137,23 @@ export class PayrollService {
     if (!actor.ok) return actor;
     if (!input.name.trim()) return { ok: false, error: failure('INVALID_POLICY') };
     if (!input.reason.trim()) return { ok: false, error: failure('REASON_REQUIRED') };
-    const validation = calculatePayroll({
-      monthlySalaryMinor: 0,
-      wageBasisDays: 30,
-      days: [],
-      policy: input.config.policy,
-      ...(input.config.options ? { options: input.config.options } : {}),
-    });
+    const validation =
+      'version' in input.config
+        ? calculatePayrollV2({
+            monthlySalaryMinor: 0,
+            wageBasisDays: 30,
+            days: [],
+            lateRule: input.config.lateRule,
+            overtimeRule: input.config.overtimeRule,
+            absenceMultiplier: input.config.absenceMultiplier,
+          })
+        : calculatePayroll({
+            monthlySalaryMinor: 0,
+            wageBasisDays: 30,
+            days: [],
+            policy: input.config.policy,
+            ...(input.config.options ? { options: input.config.options } : {}),
+          });
     if (!validation.ok) {
       return {
         ok: false,
@@ -149,7 +186,9 @@ export class PayrollService {
     employeeId: number,
     month: string,
     policyId: number,
-    lateRoundingByDate: Readonly<Record<string, 'exact' | 'hour_up'>> = {},
+    deductionByDate: Readonly<Record<string, 'none' | 'exact' | 'hour_up' | 'full_day'>> = {},
+    dateDecisions: Readonly<Record<string, PayrollDateDecision>> = {},
+    salaryOverrideMinor?: number,
   ): ServiceResult<PayrollPreviewView, PayrollError> {
     const actor = this.auth.authorize('payroll.read');
     if (!actor.ok) return actor;
@@ -163,6 +202,85 @@ export class PayrollService {
     const config = policyRecord.config as PayrollPolicyConfig;
     const attendance = this.attendance.month(employeeId, month);
     if (!attendance.ok) return { ok: false, error: failure('ATTENDANCE', [attendance.error.code]) };
+    if ('version' in config) {
+      const payrollInput: PayrollV2Input = {
+        monthlySalaryMinor: salaryOverrideMinor ?? employee.monthlySalaryMinor,
+        wageBasisDays: employee.wageBasisDays,
+        days: attendance.value.days.map((day) => {
+          const decision = dateDecisions[day.date];
+          return {
+            date: day.date,
+            status: day.status,
+            lateMinutes: day.lateMinutes ?? 0,
+            overtimeMinutes: day.overtimeMinutes ?? 0,
+            ...(day.scheduledMinutes ? { scheduledMinutes: day.scheduledMinutes } : {}),
+            ...(decision?.included !== undefined ? { included: decision.included } : {}),
+            ...(decision?.lateMethod && decision.lateMethod !== config.lateRule.method
+              ? {
+                  lateOverride: {
+                    method: decision.lateMethod,
+                    ...(decision.lateCustomAmountMinor !== undefined ||
+                    decision.customAmountMinor !== undefined
+                      ? {
+                          customAmountMinor:
+                            decision.lateCustomAmountMinor ?? decision.customAmountMinor,
+                        }
+                      : {}),
+                    ...(decision.lateReason || decision.reason
+                      ? { reason: decision.lateReason ?? decision.reason }
+                      : {}),
+                  },
+                }
+              : {}),
+            ...(decision?.overtimeMethod && decision.overtimeMethod !== config.overtimeRule.method
+              ? {
+                  overtimeOverride: {
+                    method: decision.overtimeMethod,
+                    ...(decision.overtimeCustomAmountMinor !== undefined
+                      ? { customAmountMinor: decision.overtimeCustomAmountMinor }
+                      : {}),
+                    ...(decision.overtimeReason || decision.reason
+                      ? { reason: decision.overtimeReason ?? decision.reason }
+                      : {}),
+                  },
+                }
+              : {}),
+            edited: Boolean(day.correctionReasons.length || decision),
+            editReason:
+              decision?.lateReason ??
+              decision?.overtimeReason ??
+              decision?.reason ??
+              (day.correctionReasons.join(' · ') || null),
+          };
+        }),
+        lateRule: config.lateRule,
+        overtimeRule: config.overtimeRule,
+        absenceMultiplier: config.absenceMultiplier,
+      };
+      const calculated = calculatePayrollV2(payrollInput);
+      if (!calculated.ok)
+        return {
+          ok: false,
+          error: failure(
+            'CALCULATION',
+            calculated.error.map((item) => item.code),
+          ),
+        };
+      return {
+        ok: true,
+        value: {
+          employee: {
+            id: employee.id,
+            fullName: employee.fullName,
+            deviceUserId: employee.deviceUserId,
+          },
+          month,
+          policy: policyView(policyRecord),
+          input: payrollInput,
+          result: calculated.value,
+        },
+      };
+    }
     const payrollInput: PayrollInput = {
       monthlySalaryMinor: employee.monthlySalaryMinor,
       wageBasisDays: employee.wageBasisDays,
@@ -170,7 +288,7 @@ export class PayrollService {
         date: day.date,
         status: day.status,
         lateMinutes: day.lateMinutes ?? 0,
-        lateRounding: lateRoundingByDate[day.date] ?? 'exact',
+        deductionTreatment: deductionByDate[day.date] ?? 'none',
         ...(day.scheduledMinutes ? { scheduledMinutes: day.scheduledMinutes } : {}),
       })),
       policy: config.policy,
@@ -205,7 +323,9 @@ export class PayrollService {
     employeeId: number;
     month: string;
     policyId: number;
-    lateRoundingByDate?: Readonly<Record<string, 'exact' | 'hour_up'>>;
+    deductionByDate?: Readonly<Record<string, 'none' | 'exact' | 'hour_up' | 'full_day'>>;
+    dateDecisions?: Readonly<Record<string, PayrollDateDecision>>;
+    salaryOverrideMinor?: number;
     reason: string;
   }): ServiceResult<PayrollRunView, PayrollError> {
     const actor = this.auth.authorize('payroll.read');
@@ -219,7 +339,9 @@ export class PayrollService {
       input.employeeId,
       input.month,
       input.policyId,
-      input.lateRoundingByDate,
+      input.deductionByDate,
+      input.dateDecisions,
+      input.salaryOverrideMinor,
     );
     if (!preview.ok) return preview;
     let approved!: ReturnType<PayrollRepository['insertApprovedRun']>;

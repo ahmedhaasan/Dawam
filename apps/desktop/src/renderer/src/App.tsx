@@ -105,6 +105,15 @@ const Dashboard = ({ session, onLogout }: DashboardProps): React.JSX.Element => 
   const { i18n, t } = useTranslation();
   const language = (i18n.resolvedLanguage === 'en' ? 'en' : 'ar') as SupportedLanguage;
   const [activeModule, setActiveModule] = useState<ModuleKey>('home');
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(
+    () => window.localStorage.getItem('dawam.sidebarCollapsed') === '1',
+  );
+  const toggleSidebar = (): void => {
+    setSidebarCollapsed((value) => {
+      window.localStorage.setItem('dawam.sidebarCollapsed', value ? '0' : '1');
+      return !value;
+    });
+  };
   const [profilePhoto, setProfilePhoto] = useState('');
   const [overview, setOverview] = useState({
     employees: 0,
@@ -190,7 +199,7 @@ const Dashboard = ({ session, onLogout }: DashboardProps): React.JSX.Element => 
       for (const record of records) {
         if (record.attendance.ok) {
           const day = record.attendance.value.days.find((item) => item.date === today);
-          if (day?.status === 'PRESENT') present += 1;
+          if (day?.status === 'PRESENT' || day?.status === 'EARLY_LEAVE') present += 1;
           if ((day?.lateMinutes ?? 0) > 0) late += 1;
           if (
             day &&
@@ -245,16 +254,15 @@ const Dashboard = ({ session, onLogout }: DashboardProps): React.JSX.Element => 
     {
       key: 'employees',
       value: String(overview.employees),
-      change: t('home.activeCount', { count: overview.activeEmployees }),
       tone: 'blue',
     },
-    { key: 'attendance', value: String(overview.present), change: '', tone: 'green' },
-    { key: 'late', value: String(overview.late), change: '', tone: 'amber' },
-    { key: 'pending', value: String(overview.pending), change: '', tone: 'violet' },
+    { key: 'attendance', value: String(overview.present), tone: 'green' },
+    { key: 'late', value: String(overview.late), tone: 'amber' },
+    { key: 'pending', value: String(overview.pending), tone: 'violet' },
   ];
 
   return (
-    <div className="app-shell">
+    <div className={sidebarCollapsed ? 'app-shell sidebar-collapsed' : 'app-shell'}>
       <aside className="sidebar">
         <div className="brand">
           <div className="brand-mark">
@@ -273,6 +281,7 @@ const Dashboard = ({ session, onLogout }: DashboardProps): React.JSX.Element => 
               className={activeModule === item.key ? 'nav-item active' : 'nav-item'}
               key={item.key}
               type="button"
+              title={t(`nav.${item.key}`)}
               onClick={() => setActiveModule(item.key as ModuleKey)}
             >
               <Icon name={item.icon} />
@@ -284,6 +293,7 @@ const Dashboard = ({ session, onLogout }: DashboardProps): React.JSX.Element => 
           <button
             className={activeModule === 'settings' ? 'nav-item active' : 'nav-item'}
             type="button"
+            title={t('nav.settings')}
             onClick={() => setActiveModule('settings')}
           >
             <Icon name="settings" />
@@ -298,6 +308,15 @@ const Dashboard = ({ session, onLogout }: DashboardProps): React.JSX.Element => 
 
       <main className="main">
         <header className="topbar">
+          <button
+            className="sidebar-toggle"
+            type="button"
+            aria-label={t(sidebarCollapsed ? 'common.expandSidebar' : 'common.collapseSidebar')}
+            title={t(sidebarCollapsed ? 'common.expandSidebar' : 'common.collapseSidebar')}
+            onClick={toggleSidebar}
+          >
+            ☰
+          </button>
           <div className="workspace-label">{t('header.workspace')}</div>
           <div className="topbar-actions">
             <button className="language-button" type="button" onClick={() => void toggleLanguage()}>
@@ -357,7 +376,6 @@ const Dashboard = ({ session, onLogout }: DashboardProps): React.JSX.Element => 
               <div>
                 <span className="eyebrow">{t('home.eyebrow')}</span>
                 <h1>{t('home.greeting', { name: session.username })}</h1>
-                <p>{t('home.subtitle')}</p>
               </div>
               <div className="date-card">
                 <Icon name="calendar" />
@@ -379,34 +397,16 @@ const Dashboard = ({ session, onLogout }: DashboardProps): React.JSX.Element => 
                 <article className={`stat-card ${stat.tone}`} key={stat.key}>
                   <div className="stat-head">
                     <span>{t(`home.${stat.key}`)}</span>
-                    {stat.change && <span className="stat-change">{stat.change}</span>}
                   </div>
                   <strong>{stat.value}</strong>
-                  <div className="mini-bars">
-                    <i></i>
-                    <i></i>
-                    <i></i>
-                    <i></i>
-                    <i></i>
-                    <i></i>
-                  </div>
                 </article>
               ))}
             </div>
 
             <div className="dashboard-grid">
               <section className="card import-card">
-                <div className="import-visual">
-                  <div className="upload-ring">
-                    <Icon name="upload" />
-                  </div>
-                  <span className="spark spark-one"></span>
-                  <span className="spark spark-two"></span>
-                </div>
                 <div className="import-copy">
-                  <span className="eyebrow">USB</span>
                   <h2>{t('home.importTitle')}</h2>
-                  <p>{t('home.importDescription')}</p>
                   <ImportWizard />
                 </div>
               </section>
@@ -414,10 +414,11 @@ const Dashboard = ({ session, onLogout }: DashboardProps): React.JSX.Element => 
               <section className="card shifts-card">
                 <div className="section-heading">
                   <div>
-                    <span className="eyebrow">{language === 'ar' ? 'اليوم' : 'Today'}</span>
                     <h2>{t('home.upcoming')}</h2>
                   </div>
-                  <button type="button">{t('common.viewAll')}</button>
+                  <button type="button" onClick={() => setActiveModule('schedule')}>
+                    {t('common.viewAll')}
+                  </button>
                 </div>
                 {overview.shifts.length === 0 && (
                   <div className="empty-dashboard-list">{t('home.noShiftsToday')}</div>
@@ -437,16 +438,6 @@ const Dashboard = ({ session, onLogout }: DashboardProps): React.JSX.Element => 
                 ))}
               </section>
             </div>
-
-            <section className="card foundation-note">
-              <div className="note-icon">
-                <Icon name="people" />
-              </div>
-              <div>
-                <strong>{t('home.liveTitle')}</strong>
-                <p>{t('home.liveDescription')}</p>
-              </div>
-            </section>
           </section>
         )}
       </main>

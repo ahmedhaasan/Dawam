@@ -93,6 +93,22 @@ describe('attendance status engine', () => {
     ).toMatchObject({ ok: true, value: { status: 'NOT_CLOSED' } });
   });
 
+  it('marks a complete accepted pair present even while its OUT zone remains open', () => {
+    expect(
+      status(
+        matchedWith(['2026-11-09 10:00:00', '2026-11-09 21:52:00']),
+        fullCoverage,
+        '2026-11-09 22:30:00',
+      ),
+    ).toMatchObject({
+      ok: true,
+      value: {
+        status: 'PRESENT',
+        matched: { earlyLeaveMinutes: 8 },
+      },
+    });
+  });
+
   it('never infers absence without confirmed full coverage', () => {
     const empty = matchedWith([]);
     expect(status(empty, [])).toMatchObject({
@@ -172,10 +188,61 @@ describe('attendance status engine', () => {
     ];
     const summary = summarizeMonth(days);
     expect(summary.totalLateMinutes).toBe(20);
+    expect(summary.totalWorkedMinutes).toBe(700);
+    expect(summary.totalOvertimeMinutes).toBe(0);
     expect(summary.statusCounts.PRESENT).toBe(1);
     expect(summary.statusCounts.MISSING_OUT).toBe(1);
     expect(summary.missingPunchDates).toEqual(['2026-11-10']);
     expect(summary.reviewDates).toEqual(['2026-11-10']);
+  });
+
+  it('summarizes overtime dates and equals the sum of daily overtime', () => {
+    const matched = matchedWith(['2026-11-09 10:00:00', '2026-11-09 22:30:00']);
+    const detailed = summarizeMonth([
+      {
+        employeeId: 'E1',
+        date: '2026-11-09',
+        status: 'PRESENT',
+        matched,
+        flags: [],
+      },
+    ]);
+    expect(detailed.overtimeDates).toEqual([
+      {
+        date: '2026-11-09',
+        scheduledEnd: '2026-11-09 22:00:00',
+        actualOut: '2026-11-09 22:30:00',
+        minutes: 30,
+      },
+    ]);
+
+    fc.assert(
+      fc.property(
+        fc.array(fc.integer({ min: 0, max: 480 }), { minLength: 1, maxLength: 31 }),
+        (values) => {
+          const days: AttendanceResult[] = values.map((overtimeMinutes, index) => {
+            const date = `2026-11-${String(index + 1).padStart(2, '0')}`;
+            return {
+              employeeId: 'E1',
+              date,
+              status: 'PRESENT' as const,
+              matched: {
+                instance: instanceFor(date),
+                hours: 12,
+                lateMinutes: 0,
+                earlyLeaveMinutes: 0,
+                overtimeMinutes,
+                reviewFlags: [],
+              },
+              flags: [],
+            };
+          });
+          expect(summarizeMonth(days).totalOvertimeMinutes).toBe(
+            days.reduce((sum, day) => sum + (day.matched?.overtimeMinutes ?? 0), 0),
+          );
+        },
+      ),
+    );
   });
 
   it('always sums month lateness from its individual dates', () => {
@@ -191,6 +258,7 @@ describe('attendance status engine', () => {
             hours: 12,
             lateMinutes: minutes,
             earlyLeaveMinutes: 0,
+            overtimeMinutes: 0,
             reviewFlags: [],
           },
         }));
